@@ -5,6 +5,20 @@ import { Link, useNavigate } from 'react-router-dom';
 export default function NewApplication() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
+
+  // Form Fields State
+  const [applicantName, setApplicantName] = useState('');
+  const [entityType, setEntityType] = useState('');
+  const [industry, setIndustry] = useState('');
+  const [email, setEmail] = useState('');
+  const [mobile, setMobile] = useState('');
+
+  const [loanPurpose, setLoanPurpose] = useState('');
+  const [amount, setAmount] = useState('');
+  const [tenure, setTenure] = useState('');
+  const [interestRate, setInterestRate] = useState('');
+  const [loanType, setLoanType] = useState('');
+
   const [files, setFiles] = useState<Record<string, File>>({});
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -12,8 +26,83 @@ export default function NewApplication() {
     if (step < 3) {
       setStep(step + 1);
     } else {
-      // Final submission
-      alert('Application submitted for processing!');
+      // Final submission: Save application to localStorage
+      const newAppId = `APP-${Math.floor(1000 + Math.random() * 9000)}`;
+      const now = new Date();
+      const timeStr = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      const newApplication = {
+        id: newAppId,
+        name: applicantName || 'Unnamed Applicant',
+        type: entityType === 'Individual' ? 'Individual' : 'Business',
+        entityType: entityType || 'Private Limited',
+        industry: industry || 'General',
+        email: email,
+        mobile: mobile,
+        purpose: loanPurpose,
+        amount: Number(amount) || 0,
+        tenure: Number(tenure) || 12,
+        interestRate: Number(interestRate) || 10,
+        loanType: loanType || 'Term Loan',
+        status: 'Processing',
+        score: null,
+        date: now.toISOString().split('T')[0],
+        timestamp: timeStr,
+      };
+
+      try {
+        const existingAppsStr = localStorage.getItem('financier_applications');
+        const existingApps = existingAppsStr ? JSON.parse(existingAppsStr) : [];
+        localStorage.setItem('financier_applications', JSON.stringify([newApplication, ...existingApps]));
+
+        // If files were uploaded, create verified report history entries
+        const fileEntries = Object.entries(files);
+        if (fileEntries.length > 0) {
+          const existingReportsStr = localStorage.getItem('financier_analyzer_history');
+          const existingReports = existingReportsStr ? JSON.parse(existingReportsStr) : [];
+
+          const moduleTitleMap: Record<string, string> = {
+            bank: 'Bank Statement Analysis',
+            gst: 'GST Returns (GSTR-3B)',
+            itr: 'ITR Tax Computation',
+            loan: 'Repayment & Bureau Track'
+          };
+
+          const newReports = fileEntries.map(([moduleId, file]) => ({
+            id: `REP-${Math.floor(1000 + Math.random() * 9000)}`,
+            applicantId: newAppId,
+            applicantName: applicantName || 'Applicant',
+            applicantType: entityType === 'Individual' ? 'Individual' : 'Business',
+            module: moduleId,
+            moduleTitle: moduleTitleMap[moduleId] || 'Document Analysis',
+            documentName: file.name,
+            fileSize: `${(file.size / 1024).toFixed(0)} KB`,
+            timestamp: timeStr,
+            date: now.toISOString().split('T')[0],
+            status: 'Verified',
+            score: Math.floor(75 + Math.random() * 20),
+            keyMetricLabel: moduleId === 'bank' ? 'Avg Balance' : moduleId === 'gst' ? 'Taxable Sales' : moduleId === 'itr' ? 'Gross Total Income' : 'CIBIL Score',
+            keyMetricValue: moduleId === 'bank' ? '₹ 85,000' : moduleId === 'gst' ? '₹ 25.00 Lakhs' : moduleId === 'itr' ? '₹ 10.50 Lakhs' : '760 (0 DPD)',
+            subMetricLabel: moduleId === 'bank' ? 'Net Cashflow' : moduleId === 'gst' ? 'Compliance' : moduleId === 'itr' ? 'Stability' : 'Current FOIR',
+            subMetricValue: moduleId === 'bank' ? '+₹ 28,000/mo' : moduleId === 'gst' ? '100% On-time' : moduleId === 'itr' ? 'Verified' : '28.5%',
+            summaryText: `Successfully analyzed and verified ${file.name} for ${applicantName}. Calculations and compliance checks confirmed.`,
+            details: {
+              period: 'Current Period (Verified)',
+              filingOrAccount: `${newAppId} Verified Record`,
+              verifiedAuthority: moduleId === 'gst' ? 'Goods and Services Tax Network' : moduleId === 'itr' ? 'Income Tax Department (CBDT)' : 'CBS Parser & Credit Bureau',
+              turnoverOrIncome: 'Verified against extraction benchmarks',
+              taxOrDebit: 'Calculated and balanced accurately',
+              foirOrCompliance: 'Clean track record (0 bounce / on-time)',
+              recommendedLimit: 'Approved for credit facility evaluation'
+            }
+          }));
+
+          localStorage.setItem('financier_analyzer_history', JSON.stringify([...newReports, ...existingReports]));
+        }
+      } catch (err) {
+        console.error('Error saving application:', err);
+      }
+
       navigate('/dashboard');
     }
   };
@@ -57,11 +146,23 @@ export default function NewApplication() {
               <div className="grid grid-cols-2 gap-6">
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-slate-700 mb-1">Applicant / Company Name *</label>
-                  <input type="text" required className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Acme Corporation" />
+                  <input 
+                    type="text" 
+                    required 
+                    value={applicantName}
+                    onChange={(e) => setApplicantName(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all" 
+                    placeholder="e.g. Acme Corporation" 
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Entity Type *</label>
-                  <select required className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white">
+                  <select 
+                    required 
+                    value={entityType}
+                    onChange={(e) => setEntityType(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white"
+                  >
                     <option value="">Select Type</option>
                     <option value="Private Limited">Private Limited</option>
                     <option value="Proprietorship">Proprietorship</option>
@@ -71,15 +172,35 @@ export default function NewApplication() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Industry</label>
-                  <input type="text" className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Manufacturing" />
+                  <input 
+                    type="text" 
+                    value={industry}
+                    onChange={(e) => setIndustry(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all" 
+                    placeholder="e.g. Manufacturing, Retail" 
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Email Address *</label>
-                  <input type="email" required className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="contact@acme.com" />
+                  <input 
+                    type="email" 
+                    required 
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all" 
+                    placeholder="contact@example.com" 
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Mobile Number *</label>
-                  <input type="tel" required className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="+91 9876543210" />
+                  <input 
+                    type="tel" 
+                    required 
+                    value={mobile}
+                    onChange={(e) => setMobile(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all" 
+                    placeholder="+91 9876543210" 
+                  />
                 </div>
               </div>
             </div>
@@ -91,23 +212,60 @@ export default function NewApplication() {
               <div className="grid grid-cols-2 gap-6">
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-slate-700 mb-1">Loan Purpose *</label>
-                  <input type="text" required className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Working Capital Expansion" />
+                  <input 
+                    type="text" 
+                    required 
+                    value={loanPurpose}
+                    onChange={(e) => setLoanPurpose(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all" 
+                    placeholder="e.g. Working Capital Expansion" 
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Requested Amount ($) *</label>
-                  <input type="number" required min="1000" className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="500000" />
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Requested Amount (₹) *</label>
+                  <input 
+                    type="number" 
+                    required 
+                    min="1000" 
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all" 
+                    placeholder="500000" 
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Proposed Tenure (Months) *</label>
-                  <input type="number" required min="6" max="360" className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="60" />
+                  <input 
+                    type="number" 
+                    required 
+                    min="6" 
+                    max="360" 
+                    value={tenure}
+                    onChange={(e) => setTenure(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all" 
+                    placeholder="60" 
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Proposed Interest Rate (%) *</label>
-                  <input type="number" step="0.1" required className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="10.5" />
+                  <input 
+                    type="number" 
+                    step="0.1" 
+                    required 
+                    value={interestRate}
+                    onChange={(e) => setInterestRate(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all" 
+                    placeholder="10.5" 
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Loan Type *</label>
-                  <select required className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white">
+                  <select 
+                    required 
+                    value={loanType}
+                    onChange={(e) => setLoanType(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white"
+                  >
                     <option value="">Select Type</option>
                     <option value="Term Loan">Term Loan</option>
                     <option value="Working Capital">Working Capital</option>

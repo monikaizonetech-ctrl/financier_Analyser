@@ -42,12 +42,12 @@ export default function DashboardLayout() {
           </Link>
         </nav>
 
-        <div className="p-4 border-t border-slate-800">
-          <Link to="/settings" className="flex items-center gap-3 px-4 py-2 text-slate-400 hover:text-white transition-all">
-            <Settings size={20} />
+        <div className="p-4 border-t border-slate-800 space-y-1">
+          <Link to="/settings" className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all group ${isActive('/settings')}`}>
+            <Settings size={20} className={location.pathname.startsWith('/settings') ? "" : "group-hover:text-blue-400 transition-colors"} />
             <span className="font-medium">Settings</span>
           </Link>
-          <button className="flex items-center gap-3 px-4 py-2 mt-2 text-slate-400 hover:text-red-400 transition-all w-full text-left" onClick={() => { localStorage.clear(); window.location.href = '/login'; }}>
+          <button className="flex items-center gap-3 px-4 py-2 text-slate-400 hover:text-red-400 transition-all w-full text-left rounded-xl hover:bg-slate-800/60" onClick={() => { localStorage.clear(); window.location.href = '/login'; }}>
             <LogOut size={20} />
             <span className="font-medium">Sign Out</span>
           </button>

@@ -5,6 +5,7 @@ from app.models.core import RoleEnum
 class UserBase(BaseModel):
     email: EmailStr
     name: str
+    phone_number: Optional[str] = None
 
 class UserCreate(UserBase):
     password: str

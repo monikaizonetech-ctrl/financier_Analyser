@@ -1,6 +1,6 @@
 import { Plus, Filter, Download, FileText, FileSpreadsheet, Upload, CheckCircle, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 type UploadStatus = 'idle' | 'uploading' | 'success';
 
@@ -23,9 +23,31 @@ const MODULES: DocumentModule[] = [
 export default function Applicants() {
   const [files, setFiles] = useState<Record<string, File | null>>({});
   const [statuses, setStatuses] = useState<Record<string, UploadStatus>>({});
+  const [applicantName, setApplicantName] = useState<string>('');
+  const [applicantId, setApplicantId] = useState<string>('');
+  const [availableApplicants, setAvailableApplicants] = useState<Array<{ id: string; name: string; type: string }>>([]);
+
+  useEffect(() => {
+    try {
+      const savedAppsStr = localStorage.getItem('financier_applications');
+      if (savedAppsStr) {
+        const apps = JSON.parse(savedAppsStr);
+        if (Array.isArray(apps) && apps.length > 0) {
+          setAvailableApplicants(apps);
+          setApplicantName(apps[0].name);
+          setApplicantId(apps[0].id);
+        }
+      }
+    } catch (e) {
+      console.error('Error loading applicants:', e);
+    }
+  }, []);
+
+  const currentAppId = applicantId || 'APP-PRO';
+  const currentAppName = applicantName || 'Applicant Profile';
 
   const downloadReport = (module: string, type: 'excel' | 'pdf') => {
-    window.open(`http://127.0.0.1:8000/api/reports/APP-1001/${module}/${type}`, '_blank');
+    window.open(`http://127.0.0.1:8000/api/reports/${currentAppId}/${module}/${type}`, '_blank');
   };
 
   const handleFileChange = (moduleId: string, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -54,8 +76,8 @@ export default function Applicants() {
         const modInfo = MODULES.find(m => m.id === moduleId);
         const newRecord = {
           id: `REP-${Math.floor(1000 + Math.random() * 9000)}`,
-          applicantId: 'APP-1001',
-          applicantName: 'Suguna Enterprises / Suguna M',
+          applicantId: currentAppId,
+          applicantName: currentAppName,
           applicantType: moduleId === 'gst' ? 'Business' : 'Individual',
           module: moduleId,
           moduleTitle: modInfo ? modInfo.title : 'Document Analysis',
@@ -64,15 +86,15 @@ export default function Applicants() {
           timestamp: timeStr,
           date: now.toISOString().split('T')[0],
           status: 'Verified',
-          score: Math.floor(88 + Math.random() * 8),
+          score: Math.floor(80 + Math.random() * 18),
           keyMetricLabel: moduleId === 'bank' ? 'Avg Balance' : moduleId === 'gst' ? 'Taxable Sales' : moduleId === 'itr' ? 'Gross Total Income' : 'CIBIL Score',
-          keyMetricValue: moduleId === 'bank' ? '₹ 78,556' : moduleId === 'gst' ? '₹ 30.20 Lakhs' : moduleId === 'itr' ? '₹ 12.50 Lakhs' : '785 (0 DPD)',
-          subMetricLabel: moduleId === 'bank' ? 'Net Cashflow' : moduleId === 'gst' ? 'Compliance' : moduleId === 'itr' ? '3-Yr CAGR' : 'Current FOIR',
-          subMetricValue: moduleId === 'bank' ? '+₹ 32,557/mo' : moduleId === 'gst' ? '100% On-time' : moduleId === 'itr' ? '+14.7%' : '24.47%',
-          summaryText: `Successfully analyzed and verified ${file.name}. All ledger calculations and compliance checks confirmed.`,
+          keyMetricValue: moduleId === 'bank' ? '₹ 82,450' : moduleId === 'gst' ? '₹ 28.50 Lakhs' : moduleId === 'itr' ? '₹ 11.80 Lakhs' : '770 (0 DPD)',
+          subMetricLabel: moduleId === 'bank' ? 'Net Cashflow' : moduleId === 'gst' ? 'Compliance' : moduleId === 'itr' ? 'Stability' : 'Current FOIR',
+          subMetricValue: moduleId === 'bank' ? '+₹ 30,120/mo' : moduleId === 'gst' ? '100% On-time' : moduleId === 'itr' ? 'Verified' : '26.2%',
+          summaryText: `Successfully analyzed and verified ${file.name} for ${currentAppName}. All ledger calculations and compliance checks confirmed.`,
           details: {
             period: 'Recent Period (Verified)',
-            filingOrAccount: 'Verified Record / Ref #9941',
+            filingOrAccount: `${currentAppId} Verified Record`,
             verifiedAuthority: moduleId === 'gst' ? 'Goods and Services Tax Network' : moduleId === 'itr' ? 'Income Tax Department (CBDT)' : 'CBS Parser & Credit Bureau',
             turnoverOrIncome: 'Verified against system audit benchmark',
             taxOrDebit: 'Calculated and balanced accurately',
@@ -104,6 +126,48 @@ export default function Applicants() {
             <Plus size={20} /> Add Applicant
           </Link>
         </div>
+      </div>
+
+      {/* Target Applicant Selector */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+            Target Applicant for Document Analysis
+          </label>
+          <div className="flex items-center gap-3">
+            {availableApplicants.length > 0 ? (
+              <select 
+                value={applicantId}
+                onChange={(e) => {
+                  const sel = availableApplicants.find(a => a.id === e.target.value);
+                  if (sel) {
+                    setApplicantId(sel.id);
+                    setApplicantName(sel.name);
+                  }
+                }}
+                className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500"
+              >
+                {availableApplicants.map(app => (
+                  <option key={app.id} value={app.id}>
+                    {app.name} ({app.id})
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input 
+                type="text"
+                value={applicantName}
+                onChange={(e) => setApplicantName(e.target.value)}
+                placeholder="Enter Applicant or Business Name"
+                className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500 w-72"
+              />
+            )}
+            <span className="text-xs text-slate-400 font-medium">ID: {currentAppId}</span>
+          </div>
+        </div>
+        <Link to="/applications/new" className="text-xs font-bold text-blue-600 hover:text-blue-700">
+          + Create New Applicant Profile
+        </Link>
       </div>
 
       <div className="space-y-6">

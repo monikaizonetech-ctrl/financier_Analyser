@@ -261,10 +261,10 @@ def generate_bank_pdf(applicant_id: str) -> BytesIO:
     elements.append(Paragraph("Sample Bank Statement — For Testing / Demo Purposes Only", subtitle_style))
     
     account_data = [
-        ['Account Holder', 'suguna'],
+        ['Account Holder', f'Applicant ({applicant_id})'],
         ['Account Number', 'XXXX XXXX 4821'],
-        ['Statement Period', '01 Jul 2026 - 31 Jul 2026'],
-        ['Account Type', 'Savings Account']
+        ['Statement Period', 'Recent Period (Verified)'],
+        ['Account Type', 'Primary Account']
     ]
     account_table = Table(account_data, colWidths=[2*inch, 4*inch])
     account_table.setStyle(TableStyle([
@@ -362,7 +362,7 @@ def get_header_style(title):
     ]))
     return t
 
-def get_gst_page_1_elements(styles):
+def get_gst_page_1_elements(styles, applicant_id: str = "PRO-APP"):
     elements = []
     
     title_style = ParagraphStyle('GSTHeaderTitle', parent=styles['Heading1'], alignment=1, spaceAfter=8, textColor=colors.HexColor('#1e3a8a'))
@@ -371,9 +371,9 @@ def get_gst_page_1_elements(styles):
     elements.append(Paragraph("GSTR-3B & GSTR-1 Verified Returns Summary — Official Extraction Record", subtitle_style))
     
     account_data = [
-        ['Legal Name', 'Suguna Enterprises Private Limited', 'GSTIN / UIN', '33ABCDE1234F1Z5'],
-        ['Trade Name', 'Suguna Enterprises', 'Taxpayer Type', 'Regular Taxpayer'],
-        ['Filing Period', '01 Apr 2026 - 30 Sep 2026 (H1 FY 2026-27)', 'Principal State', 'Tamil Nadu (33)'],
+        ['Legal Name', f'Business Entity ({applicant_id})', 'GSTIN / UIN', '33ABCDE1234F1Z5'],
+        ['Trade Name', f'Trade Unit ({applicant_id})', 'Taxpayer Type', 'Regular Taxpayer'],
+        ['Filing Period', 'Recent Financial Periods (Verified)', 'Principal State', 'Verified Jurisdiction (33)'],
         ['Filing Frequency', 'Monthly', 'Return Status', 'All Filed (Active)']
     ]
     account_table = Table(account_data, colWidths=[1.5*inch, 2*inch, 1.3*inch, 1.7*inch])
@@ -618,7 +618,7 @@ def generate_gst_pdf(applicant_id: str) -> BytesIO:
     styles = getSampleStyleSheet()
     
     # Page 1: GST Itemized Ledger
-    elements.extend(get_gst_page_1_elements(styles))
+    elements.extend(get_gst_page_1_elements(styles, applicant_id))
     
     # Page 2: Summary & Reconciliation
     elements.append(PageBreak())
@@ -637,7 +637,7 @@ def generate_gst_pdf(applicant_id: str) -> BytesIO:
     return output
 
 
-def get_itr_page_1_elements(styles):
+def get_itr_page_1_elements(styles, applicant_id: str = "PRO-APP"):
     elements = []
     
     title_style = ParagraphStyle('ITRHeaderTitle', parent=styles['Heading1'], alignment=1, spaceAfter=8, textColor=colors.HexColor('#1e3a8a'))
@@ -646,10 +646,10 @@ def get_itr_page_1_elements(styles):
     elements.append(Paragraph("ITR-V (Indian Income Tax Return Verification Form) — Official Computation Record", subtitle_style))
     
     account_data = [
-        ['Taxpayer Name', 'Suguna M', 'PAN', 'ABCDE1234F'],
-        ['Assessment Year', '2025-26 (FY 2024-25)', 'Filing Status', 'Individual (Resident)'],
-        ['ITR Form Type', 'ITR-3 (Business & Salary)', 'Ack / E-filing No', 'e-ACK-884920184719'],
-        ['Filing Date', '28-Jul-2025 (Within Due Date)', 'Verification', 'e-Verified (Aadhaar OTP)']
+        ['Taxpayer Name', f'Taxpayer ({applicant_id})', 'PAN', 'ABCDE1234F'],
+        ['Assessment Year', 'Verified AY (Recent FY)', 'Filing Status', 'Individual (Resident)'],
+        ['ITR Form Type', 'ITR-3 (Verified Returns)', 'Ack / E-filing No', 'e-ACK-884920184719'],
+        ['Filing Date', 'Filed Within Due Date', 'Verification', 'e-Verified (System Validated)']
     ]
     account_table = Table(account_data, colWidths=[1.5*inch, 2*inch, 1.3*inch, 1.7*inch])
     account_table.setStyle(TableStyle([
@@ -896,7 +896,7 @@ def generate_itr_pdf(applicant_id: str) -> BytesIO:
     styles = getSampleStyleSheet()
     
     # Page 1: Computation Schedule
-    elements.extend(get_itr_page_1_elements(styles))
+    elements.extend(get_itr_page_1_elements(styles, applicant_id))
     
     # Page 2: Summary & Multi-Year Trends
     elements.append(PageBreak())
@@ -915,7 +915,7 @@ def generate_itr_pdf(applicant_id: str) -> BytesIO:
     return output
 
 
-def get_loan_page_1_elements(styles):
+def get_loan_page_1_elements(styles, applicant_id: str = "PRO-APP"):
     elements = []
     
     title_style = ParagraphStyle('LoanHeaderTitle', parent=styles['Heading1'], alignment=1, spaceAfter=8, textColor=colors.HexColor('#1e3a8a'))
@@ -924,10 +924,10 @@ def get_loan_page_1_elements(styles):
     elements.append(Paragraph("Consolidated Loan Accounts & EMI Schedule — Extraction Report", subtitle_style))
     
     account_data = [
-        ['Borrower Name', 'Suguna M', 'CIBIL / Experian Score', '785 (Excellent)'],
+        ['Borrower Name', f'Borrower ({applicant_id})', 'CIBIL / Experian Score', '785 (Excellent)'],
         ['Total Active Facilities', '2 Active Accounts', 'Total Sanctioned Limit', '₹ 7,50,000.00'],
         ['Total Outstanding Balance', '₹ 4,50,000.00', 'Total Monthly EMI', '₹ 23,000.00'],
-        ['Overdue / DPD Status', '0 DPD (Clean Track)', 'Bureau Report Date', '28-Aug-2026']
+        ['Overdue / DPD Status', '0 DPD (Clean Track)', 'Bureau Report Date', 'Verified Record']
     ]
     account_table = Table(account_data, colWidths=[1.5*inch, 2*inch, 1.4*inch, 1.6*inch])
     account_table.setStyle(TableStyle([
@@ -1130,7 +1130,7 @@ def generate_loan_pdf(applicant_id: str) -> BytesIO:
     styles = getSampleStyleSheet()
     
     # Page 1: Active Loan Ledger
-    elements.extend(get_loan_page_1_elements(styles))
+    elements.extend(get_loan_page_1_elements(styles, applicant_id))
     
     # Page 2: Summary & Repayment Track
     elements.append(PageBreak())

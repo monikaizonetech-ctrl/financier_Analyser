@@ -1,6 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.core.database import Base, engine
 from app.api import auth, reports
+
+# Ensure database tables exist
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="FINANCIER ANALYZER API", version="1.0.0")
 

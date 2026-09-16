@@ -9,6 +9,7 @@ import DashboardLayout from './layouts/DashboardLayout';
 import Applicants from './pages/Applicants';
 import NewApplication from './pages/NewApplication';
 import Reports from './pages/Reports';
+import Settings from './pages/Settings';
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ function App() {
             <Route path="/applicants" element={<Applicants />} />
             <Route path="/applications/new" element={<NewApplication />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/settings" element={<Settings />} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -48,176 +48,7 @@ export interface AnalyzerRecord {
   };
 }
 
-export const INITIAL_ANALYZER_HISTORY: AnalyzerRecord[] = [
-  {
-    id: 'REP-9041',
-    applicantId: 'APP-1001',
-    applicantName: 'Suguna Enterprises Private Limited',
-    applicantType: 'Business',
-    module: 'gst',
-    moduleTitle: 'GST Returns (GSTR-3B)',
-    documentName: 'GSTR3B_Apr_Sep_2026.pdf',
-    fileSize: '840 KB',
-    timestamp: '2026-09-10 12:45 PM',
-    date: '2026-09-10',
-    status: 'Verified',
-    score: 94,
-    keyMetricLabel: 'H1 Turnover',
-    keyMetricValue: '₹ 30.20 Lakhs',
-    subMetricLabel: 'Compliance',
-    subMetricValue: '100% On-time (6/6)',
-    summaryText: 'Zero delay penalties across all 6 filed periods. Balanced ITC utilization rate with moderate customer concentration.',
-    details: {
-      period: 'Apr 2026 - Sep 2026',
-      filingOrAccount: 'GSTIN: 33ABCDE1234F1Z5',
-      verifiedAuthority: 'Goods and Services Tax Network (GSTN)',
-      turnoverOrIncome: '₹ 30,20,000 (Monthly Avg: ₹ 5.03 Lakhs)',
-      taxOrDebit: '₹ 5,43,600 (Net Tax Paid: ₹ 3.26 Lakhs)',
-      foirOrCompliance: '100% On-Time Filing (0 DPD/Delay)',
-      recommendedLimit: '₹ 15,00,000 (Working Capital OD)'
-    }
-  },
-  {
-    id: 'REP-9040',
-    applicantId: 'APP-1001',
-    applicantName: 'Suguna M',
-    applicantType: 'Individual',
-    module: 'itr',
-    moduleTitle: 'ITR-V Tax Computation',
-    documentName: 'ITR_V_AY2025_26_Ack.pdf',
-    fileSize: '620 KB',
-    timestamp: '2026-09-10 12:40 PM',
-    date: '2026-09-10',
-    status: 'Verified',
-    score: 91,
-    keyMetricLabel: 'Gross Total Income',
-    keyMetricValue: '₹ 12.50 Lakhs',
-    subMetricLabel: '3-Yr CAGR',
-    subMetricValue: '+14.7% Growth',
-    summaryText: 'Verified ITR-3 filing matched with Form 26AS. Healthy +14.7% multi-year income growth with low debt ratio.',
-    details: {
-      period: 'AY 2025-26 (FY 2024-25)',
-      filingOrAccount: 'PAN: ABCDE1234F (Ack: e-ACK-884920184719)',
-      verifiedAuthority: 'Income Tax Department (CBDT)',
-      turnoverOrIncome: '₹ 12,50,000 (Net Taxable: ₹ 10.26 Lakhs)',
-      taxOrDebit: '₹ 1,22,408 (TDS & Advance Tax Fully Paid)',
-      foirOrCompliance: '15.96% FOIR (Excellent)',
-      recommendedLimit: '₹ 45,00,000 (Max Suggested Loan)'
-    }
-  },
-  {
-    id: 'REP-9039',
-    applicantId: 'APP-1001',
-    applicantName: 'Suguna M',
-    applicantType: 'Individual',
-    module: 'bank',
-    moduleTitle: 'Bank Statement Analysis',
-    documentName: 'HDFC_Bank_Jul2026_Statement.pdf',
-    fileSize: '1.2 MB',
-    timestamp: '2026-09-10 12:35 PM',
-    date: '2026-09-10',
-    status: 'Verified',
-    score: 88,
-    keyMetricLabel: 'Monthly Avg Balance',
-    keyMetricValue: '₹ 78,556',
-    subMetricLabel: 'Net Cashflow',
-    subMetricValue: '+₹ 32,557/mo',
-    summaryText: 'Clean banking conduct with zero cheque or ECS return transactions. Consistent salary & freelance credits.',
-    details: {
-      period: '01 Jul 2026 - 31 Jul 2026',
-      filingOrAccount: 'A/C: XXXX XXXX 4821 (Demo National Bank)',
-      verifiedAuthority: 'Automated CBS Core Parser',
-      turnoverOrIncome: 'Total Credits: ₹ 48,945 (4 entries)',
-      taxOrDebit: 'Total Debits: ₹ 16,388 (8 entries)',
-      foirOrCompliance: '30.64% FOIR (Good buffer)',
-      recommendedLimit: '₹ 18,000 (Max Suggested Monthly EMI)'
-    }
-  },
-  {
-    id: 'REP-9038',
-    applicantId: 'APP-1001',
-    applicantName: 'Suguna M',
-    applicantType: 'Individual',
-    module: 'loan',
-    moduleTitle: 'Repayment & Bureau Track',
-    documentName: 'CIBIL_Repayment_Schedule.xlsx',
-    fileSize: '410 KB',
-    timestamp: '2026-09-10 12:30 PM',
-    date: '2026-09-10',
-    status: 'Verified',
-    score: 95,
-    keyMetricLabel: 'CIBIL Score',
-    keyMetricValue: '785 (0 DPD)',
-    subMetricLabel: 'Current FOIR',
-    subMetricValue: '24.47% Healthy',
-    summaryText: '2 active loan facilities (HDFC Auto & SBI Personal) with 100% spotless auto-debit track record over 24+ months.',
-    details: {
-      period: 'Active Loan Schedule (L4M)',
-      filingOrAccount: '2 Active Facilities (HDFC & SBI)',
-      verifiedAuthority: 'Credit Bureau & Bank ACH Records',
-      turnoverOrIncome: '₹ 93,966 Verified Monthly Net Income',
-      taxOrDebit: '₹ 23,000 Active Monthly EMI',
-      foirOrCompliance: '24.47% FOIR (Headroom: ₹ 23,983/mo)',
-      recommendedLimit: '₹ 20,00,000 (Additional Sanction Limit)'
-    }
-  },
-  {
-    id: 'REP-9037',
-    applicantId: 'APP-1004',
-    applicantName: 'Jane Smith',
-    applicantType: 'Individual',
-    module: 'bank',
-    moduleTitle: 'Bank Statement Analysis',
-    documentName: 'ICICI_Statement_Q2_2026.pdf',
-    fileSize: '1.4 MB',
-    timestamp: '2026-09-06 03:15 PM',
-    date: '2026-09-06',
-    status: 'Verified',
-    score: 92,
-    keyMetricLabel: 'Monthly Credits',
-    keyMetricValue: '₹ 1,12,000',
-    subMetricLabel: 'Avg Balance',
-    subMetricValue: '₹ 1,45,000',
-    summaryText: 'Prime credit profile with strong liquidity and consistent multi-stream deposits.',
-    details: {
-      period: '01 Apr 2026 - 30 Jun 2026',
-      filingOrAccount: 'A/C: XXXX XXXX 9912 (ICICI Bank)',
-      verifiedAuthority: 'Automated CBS Core Parser',
-      turnoverOrIncome: '₹ 3,36,000 Total Inward Credits',
-      taxOrDebit: '₹ 94,000 Total Outward Expenses',
-      foirOrCompliance: '18.2% FOIR (Very Low Risk)',
-      recommendedLimit: '₹ 35,00,000 (Approved Personal Loan)'
-    }
-  },
-  {
-    id: 'REP-9036',
-    applicantId: 'APP-1003',
-    applicantName: 'TechFlow Inc',
-    applicantType: 'Business',
-    module: 'gst',
-    moduleTitle: 'GST Returns (GSTR-3B)',
-    documentName: 'GSTR3B_Techflow_2026.pdf',
-    fileSize: '920 KB',
-    timestamp: '2026-09-07 11:20 AM',
-    date: '2026-09-07',
-    status: 'High Risk',
-    score: 42,
-    keyMetricLabel: 'H1 Turnover',
-    keyMetricValue: '₹ 18.50 Lakhs',
-    subMetricLabel: 'Filing Delays',
-    subMetricValue: '3 Late Filings',
-    summaryText: 'Frequent late filing penalties and high customer concentration (top buyer > 74%).',
-    details: {
-      period: 'Apr 2026 - Jun 2026',
-      filingOrAccount: 'GSTIN: 27AABCT9988P1Z9',
-      verifiedAuthority: 'Goods and Services Tax Network (GSTN)',
-      turnoverOrIncome: '₹ 18,50,000 (Declining YoY)',
-      taxOrDebit: '₹ 3,33,000 Tax with 3 Late Fee Penalties',
-      foirOrCompliance: '3 Delays (> 45 DPD late)',
-      recommendedLimit: 'Hold / Requires Senior Underwriter Review'
-    }
-  }
-];
+export const INITIAL_ANALYZER_HISTORY: AnalyzerRecord[] = [];
 
 export default function Reports() {
   const [history, setHistory] = useState<AnalyzerRecord[]>(() => {
@@ -226,10 +57,10 @@ export default function Reports() {
       try {
         return JSON.parse(saved);
       } catch {
-        return INITIAL_ANALYZER_HISTORY;
+        return [];
       }
     }
-    return INITIAL_ANALYZER_HISTORY;
+    return [];
   });
 
   const [selectedModule, setSelectedModule] = useState<string>('all');
@@ -352,11 +183,14 @@ export default function Reports() {
         </div>
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => setHistory(INITIAL_ANALYZER_HISTORY)}
+            onClick={() => {
+              setHistory([]);
+              localStorage.removeItem('financier_analyzer_history');
+            }}
             className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-all text-sm flex items-center gap-2 shadow-sm"
-            title="Reset to default sample dataset"
+            title="Clear all analyzer history"
           >
-            <RefreshCw size={16} /> Reset
+            <RefreshCw size={16} /> Clear History
           </button>
           <Link 
             to="/applicants" 

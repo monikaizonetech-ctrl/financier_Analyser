@@ -39,6 +39,22 @@ def _apply_standard_header(writer, report_type: str):
             ws.merge_cells('A8:K8')
             ws['A8'] = "Legal Name        - Jiguna Tech Private Limited"
             ws['A8'].fill = light_yellow_fill
+        elif report_type == "ITR":
+            # ITR specific meta info
+            ws.merge_cells('A5:K5')
+            ws['A5'] = "ITR ANALYSIS REPORT (1)"
+            ws['A5'].fill = light_yellow_fill
+            
+            ws.merge_cells('A6:K6')
+            ws['A6'].fill = light_yellow_fill
+            
+            ws.merge_cells('A7:K7')
+            ws['A7'] = "PAN Number        - ABCDE1234F"
+            ws['A7'].fill = light_yellow_fill
+            
+            ws.merge_cells('A8:K8')
+            ws['A8'] = "Applicant Name    - Mock Business"
+            ws['A8'].fill = light_yellow_fill
         else:
             # Row 4: Accuracy statement
             ws['A4'] = f"Accuracy : 100%. All the {report_type} records are verified"
@@ -280,6 +296,10 @@ def generate_gst_excel(applicant_id: str) -> BytesIO:
     return output
 
 def generate_itr_excel(applicant_id: str) -> BytesIO:
+    # 1. overview
+    overview_data = {"Metric": ["Applicant Name", "PAN", "Filing Status", "Years Analyzed"], "Value": ["Mock Business", "ABCDE1234F", "Regular", "3 Years (AY 23-26)"]}
+    df_overview = pd.DataFrame(overview_data)
+    
     itr_data = {
         "Assessment Year": ["AY 2025-26", "AY 2024-25", "AY 2023-24"],
         "Financial Year": ["FY 2024-25", "FY 2023-24", "FY 2022-23"],
@@ -301,6 +321,7 @@ def generate_itr_excel(applicant_id: str) -> BytesIO:
     
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df_overview.to_excel(writer, sheet_name='overview', index=False, startrow=9)
         df_itr.to_excel(writer, sheet_name='ITR_Multi_Year_Summary', index=False, startrow=9)
         df_sum.to_excel(writer, sheet_name='Income_Capacity_Assessment', index=False, startrow=9)
         _apply_standard_header(writer, "ITR")

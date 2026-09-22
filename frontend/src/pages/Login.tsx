@@ -35,8 +35,16 @@ export default function Login() {
       navigate('/dashboard');
     } catch (error: any) {
       console.error('Login failed:', error);
-      const detail = error.response?.data?.detail || 'Invalid email or password. Please try again.';
-      setErrorMsg(detail);
+      const rawDetail = error.response?.data?.detail;
+      let message = 'Invalid email or password. Please try again.';
+      if (typeof rawDetail === 'string') {
+        message = rawDetail;
+      } else if (Array.isArray(rawDetail)) {
+        message = rawDetail.map((d: any) => d.msg || (typeof d === 'string' ? d : JSON.stringify(d))).join(', ');
+      } else if (rawDetail && typeof rawDetail === 'object') {
+        message = rawDetail.msg || JSON.stringify(rawDetail);
+      }
+      setErrorMsg(message);
     } finally {
       setLoading(false);
     }
@@ -81,8 +89,16 @@ export default function Login() {
       }, 1000);
     } catch (error: any) {
       console.error('Registration failed:', error);
-      const detail = error.response?.data?.detail || 'Registration failed. This email may already be in use.';
-      setErrorMsg(detail);
+      const rawDetail = error.response?.data?.detail;
+      let message = 'Registration failed. This email may already be in use.';
+      if (typeof rawDetail === 'string') {
+        message = rawDetail;
+      } else if (Array.isArray(rawDetail)) {
+        message = rawDetail.map((d: any) => d.msg || (typeof d === 'string' ? d : JSON.stringify(d))).join(', ');
+      } else if (rawDetail && typeof rawDetail === 'object') {
+        message = rawDetail.msg || JSON.stringify(rawDetail);
+      }
+      setErrorMsg(message);
     } finally {
       setLoading(false);
     }

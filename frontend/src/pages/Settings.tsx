@@ -5,18 +5,13 @@ import {
   Cpu, 
   Key, 
   ShieldCheck, 
-  Bell, 
   Save, 
   RotateCcw, 
   CheckCircle2, 
   Trash2, 
   Download, 
-  Upload, 
-  Database,
   Lock,
-  Percent,
-  TrendingDown,
-  FileSpreadsheet
+  Percent
 } from 'lucide-react';
 
 interface SettingsState {

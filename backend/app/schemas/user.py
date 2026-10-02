@@ -1,26 +1,39 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional
-from app.models.core import RoleEnum
+from datetime import datetime
 
-class UserBase(BaseModel):
-    email: EmailStr
-    name: str
-    phone_number: Optional[str] = None
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
-class UserCreate(UserBase):
-    password: str
-    role: Optional[RoleEnum] = RoleEnum.FINANCIER
+from app.models.user import UserRole, UserStatus
 
-class UserResponse(UserBase):
+
+class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
-    role: RoleEnum
-    
-    class Config:
-        from_attributes = True
+    name: str
+    email: EmailStr
+    phone: str | None = None
+    role: UserRole
+    status: UserStatus
+    created_at: datetime
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str
 
-class TokenPayload(BaseModel):
-    sub: Optional[str] = None
+class UserCreateByAdmin(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    email: EmailStr
+    phone: str | None = None
+    password: str = Field(min_length=6, max_length=128)
+    role: UserRole = UserRole.MEMBER
+
+
+class UserUpdate(BaseModel):
+    name: str | None = None
+    phone: str | None = None
+    role: UserRole | None = None
+    status: UserStatus | None = None
+
+
+class PaginatedUsers(BaseModel):
+    items: list[UserOut]
+    total: int
+    page: int
+    page_size: int

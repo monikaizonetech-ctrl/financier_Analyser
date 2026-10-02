@@ -1,0 +1,9 @@
+{
+    "statement_credit": 17475.25,
+    "extracted_credit": 17475.25,
+    "credit_difference": 0.0,
+    "statement_debit": 15779.0,
+    "extracted_debit": 15779.0,
+    "debit_difference": 0.0,
+    "column_mapping_valid": true
+}

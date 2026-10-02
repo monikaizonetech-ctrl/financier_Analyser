@@ -1,0 +1,522 @@
+[
+    {
+        "date": "2026-08-24",
+        "description": "NEFT-ICIC-IN22623647014685-BLINK\nCOMM-BLINK COMM",
+        "credit": 290.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-08-26",
+        "description": "UPI/004416097831/CR/Prithiviraj S/SBI\n/Paid via",
+        "credit": 750.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-08-27",
+        "description": "UPI/623985631236/CR/ PRASATH B\n/UBI/UPI",
+        "credit": 12.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-08-27",
+        "description": "UPI/985174626603/CR/ Mr Ranjith N/IDI\n/Payment f",
+        "credit": 30.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-08-29",
+        "description": "UPI/624151597520/CR/ PRASATH B\n/UBI/UPI",
+        "credit": 40.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-08-29",
+        "description": "UPI/624153618722/CR/ VEERAMANI M\n/SBI/UPI",
+        "credit": 30.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-08-31",
+        "description": "UPI/660923789376/CR\n/AISWARYALAKSHM/IOB/UPI",
+        "credit": 100.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-08-31",
+        "description": "UPI/624358132623/CR/ PRASATH B\n/UBI/UPI",
+        "credit": 25.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-08-31",
+        "description": "UPI/004561895241/CR/Prithiviraj S/SBI\n/Paid via",
+        "credit": 20.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-08-31",
+        "description": "UPI/660942734077/CR/Prithiviraj S/SBI\n/Paid via",
+        "credit": 10.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-01",
+        "description": "UPI/661079774881/CR/MONIKA\nLOGANAT/IOB/UPI",
+        "credit": 20.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-01",
+        "description": "UPI/004574693304/CR\n/AISWARYALAKSHM/IOB/Paid via",
+        "credit": 20.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-03",
+        "description": "UPI/624638431274/CR/Mrs 0 CHITRA D\n/IDI/UPI",
+        "credit": 5.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-03",
+        "description": "UPI/624690209140/CR/MONIKA\nLOGANAT/IOB/UPI",
+        "credit": 50.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-04",
+        "description": "UPI/661370461970/CR\n/VENKATESHWARAN/ICI/UPI",
+        "credit": 50.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-05",
+        "description": "UPI/624842847380/CR/THARANKANI\nPUG/IOB/UPI",
+        "credit": 1000.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-05",
+        "description": "UPI/624891164004/CR/Mrs 0 CHITRA D\n/IDI/UPI",
+        "credit": 85.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-05",
+        "description": "UPI/624859121855/CR/Dharani Kumar\n/SBI/UPI",
+        "credit": 65.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-05",
+        "description": "UPI/624833967126/CR/ PRASATH B\n/UBI/UPI",
+        "credit": 200.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-06",
+        "description": "UPI/661504650799/CR\n/VENKATESHWARAN/ICI/UPI",
+        "credit": 250.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-07",
+        "description": "NEFT-ICIC-IN22625010349335-BLINK\nCOMM-BLINK COMM",
+        "credit": 145.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-08",
+        "description": "UPI/129250015473/CR/NAGARAJAN\nRAJA/HDF/UPI",
+        "credit": 26.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-08",
+        "description": "UPI/129250034294/CR/ MAHADEVAN\nM/UCB/UPI",
+        "credit": 13.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-08",
+        "description": "UPI/129250125312/CR/ P BUPESH/TNS\n/UPI",
+        "credit": 13.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-08",
+        "description": "UPI/661767167470/CR/Mrs Suguna Sub\n/IDI/UPI",
+        "credit": 20.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-08",
+        "description": "UPI/625123788628/CR/S Arun Venkate\n/SBI/UPI",
+        "credit": 10.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-08",
+        "description": "UPI/004800380907/CR\n/AISWARYALAKSHM/IOB/Paid via",
+        "credit": 13.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-08",
+        "description": "UPI/625123687088/CR/ PRASATH B\n/UBI/UPI",
+        "credit": 13.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-08",
+        "description": "UPI/625127895009/CR/Mrs 0 CHITRA D\n/IDI/UPI",
+        "credit": 15.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-08",
+        "description": "UPI/625153896554/CR/ PRASATH B\n/UBI/UPI",
+        "credit": 15.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-08",
+        "description": "UPI/625178096407/CR/S DHARUN\nKUMAR/KVB/Paid via",
+        "credit": 20.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-08",
+        "description": "UPI/625189113926/CR\n/MAGESHWARAN AL/UBI/UPI",
+        "credit": 20.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-08",
+        "description": "UPI/661713728482/CR/ AKASH V S/IOB\n/UPI",
+        "credit": 30.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-08",
+        "description": "UPI/129276675948/CR/SAHAAYA\nJESSWI/IOB/UPI",
+        "credit": 15.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-10",
+        "description": "UPI/625310253901/CR/THARANKANI\nPUG/IOB/UPI",
+        "credit": 900.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-10",
+        "description": "UPI/625334959677/CR/Dharani Kumar\n/SBI/UPI",
+        "credit": 245.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-11",
+        "description": "UPI/662035429618/CR/Mrs 0 CHITRA D\n/IDI/UPI",
+        "credit": 30.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-11",
+        "description": "UPI/625465660940/CR/Prithiviraj S/SBI\n/Paid via",
+        "credit": 40.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-12",
+        "description": "UPI/625584361824/CR/THARANKANI\nPUG/IOB/UPI",
+        "credit": 800.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-12",
+        "description": "UPI/625566357801/CR/ PRASATH B\n/UBI/UPI",
+        "credit": 15.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-17",
+        "description": "UPI/626021839425/CR/THARANKANI\nPUG/IOB/UPI",
+        "credit": 850.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-17",
+        "description": "UPI/626067201889/CR/Mr Bairavaprak\n/IDI/NA",
+        "credit": 300.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-18",
+        "description": "UPI/662784147590/CR/ PRASATH B\n/UBI/UPI",
+        "credit": 15.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-18",
+        "description": "UPI/129826263588/CR\n/AISWARYALAKSHM/IOB/UPI",
+        "credit": 100.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-18",
+        "description": "UPI/626183145735/CR/Dharani Kumar\n/SBI/UPI",
+        "credit": 15.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-18",
+        "description": "UPI/215998496565/CR/ Mr Viknesh N\n/IDI/NA",
+        "credit": 10.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-18",
+        "description": "UPI/129834871481/CR/THARANKANI\nPUG/IOB/UPI",
+        "credit": 150.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-19",
+        "description": "UPI/626238748012/CR/THARANKANI\nPUG/IOB/UPI",
+        "credit": 200.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-19",
+        "description": "UPI/626281564540/CR/THARANKANI\nPUG/IOB/UPI",
+        "credit": 300.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-19",
+        "description": "UPI/129905124569/CR/ AKASH V S/IOB\n/UPI",
+        "credit": 50.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-20",
+        "description": "UPI/216172325044/CR/Mr Bairavaprak\n/IDI/NA",
+        "credit": 10.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-20",
+        "description": "UPI/129964815789/CR/ AKASH V S/IOB\n/UPI",
+        "credit": 20.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-20",
+        "description": "UPI/626447449411/CR/ VEERAMANI M\n/SBI/UPI",
+        "credit": 20.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-21",
+        "description": "UPI/626471978632/CR\n/AISWARYALAKSHM/IOB/UPI",
+        "credit": 100.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-21",
+        "description": "UPI/663095704211/CR/THARANKANI\nPUG/IOB/UPI",
+        "credit": 300.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-21",
+        "description": "UPI/130000588457/CR/ BALAJI B/CNR\n/UPI",
+        "credit": 500.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-21",
+        "description": "UPI/663015517526/CR/Mr Sivanathan\n/IDI/UPI",
+        "credit": 34.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-21",
+        "description": "UPI/663075139931/CR/ P BUPESH/TNS\n/UPI",
+        "credit": 50.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-21",
+        "description": "UPI/663073541774/CR/ PRASATH B\n/UBI/UPI",
+        "credit": 15.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-21",
+        "description": "UPI/130011171772/CR/NAGARAJAN\nRAJA/HDF/UPI",
+        "credit": 15.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-21",
+        "description": "UPI/663008847404/CR/ S AKASH/KVB\n/UPI",
+        "credit": 15.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-21",
+        "description": "UPI/130011302561/CR/MONIKA\nLOGANAT/IOB/UPI",
+        "credit": 15.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-21",
+        "description": "UPI/626451938467/CR/Dharani Kumar\n/SBI/UPI",
+        "credit": 15.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-21",
+        "description": "UPI/663080236354/CR/ PRASATH B\n/UBI/UPI",
+        "credit": 30.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    },
+    {
+        "date": "2026-09-22",
+        "description": "UPI/626528735764/CR/ PRASATH M\n/IOB/UPI",
+        "credit": 7200.0,
+        "category": "INCOME",
+        "reason": "Matched income pattern",
+        "confidence": "HIGH"
+    }
+]

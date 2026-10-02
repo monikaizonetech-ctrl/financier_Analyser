@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: proanalyser_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: proanalyser_user
+      POSTGRES_PASSWORD: proanalyser_pass
+      POSTGRES_DB: financier_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - proanalyser_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U proanalyser_user -d financier_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    container_name: proanalyser_backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://proanalyser_user:proanalyser_pass@postgres:5432/financier_db
+      JWT_SECRET_KEY: change_this_to_a_long_random_secret_key
+      FRONTEND_ORIGIN: http://localhost:5173
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - proanalyser_uploads:/app/uploads
+
+  frontend:
+    build: ./frontend
+    container_name: proanalyser_frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000/api/v1
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  proanalyser_pgdata:
+  proanalyser_uploads:

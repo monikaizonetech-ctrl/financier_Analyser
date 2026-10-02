@@ -1,0 +1,7 @@
+{
+    "date_column": "Date",
+    "description_column": "Particulars",
+    "debit_column": "Debit(Rs)",
+    "credit_column": "Credit(Rs)",
+    "balance_column": "Balance(Rs)"
+}

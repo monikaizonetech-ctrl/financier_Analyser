@@ -1,18 +1,40 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api, { apiErrorMessage } from "../api/axios.js";
 import { useNotification } from "../context/NotificationContext.jsx";
 import DataTable from "../components/DataTable.jsx";
 import Pagination from "../components/Pagination.jsx";
-import { Badge } from "../components/Common.jsx";
+import { Badge, ConfirmDialog } from "../components/Common.jsx";
 import ReportResultModal from "./ReportResultModal.jsx";
 
 export default function TeamReports() {
   const { notify } = useNotification();
+  const navigate = useNavigate();
   const [data, setData] = useState({ items: [], total: 0, page: 1, page_size: 10 });
   const [loading, setLoading] = useState(true);
   const [searchEmail, setSearchEmail] = useState("");
   const [searchName, setSearchName] = useState("");
   const [viewReport, setViewReport] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  const handleRowAction = (report) => {
+    if (report.status === "Ready to use") {
+      setViewReport(report);
+    } else if (report.status === "Need to analyse") {
+      navigate(`/upload-report/${report.id}`);
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      await api.delete(`/reports/${deleteTarget.id}`);
+      notify("Report deleted");
+      setDeleteTarget(null);
+      fetchReports(data.page);
+    } catch (err) {
+      notify(apiErrorMessage(err), "error");
+    }
+  };
 
   const fetchReports = async (page = 1) => {
     setLoading(true);
@@ -45,7 +67,7 @@ export default function TeamReports() {
       key: "status",
       label: "Report Status",
       render: (r) => (
-        <button onClick={() => r.status === "Ready to use" && setViewReport(r)}>
+        <button onClick={() => handleRowAction(r)}>
           <Badge label={r.status} />
         </button>
       ),
@@ -72,6 +94,9 @@ export default function TeamReports() {
             onClick={() => setViewReport(r)}
           >
             ⬇️
+          </button>
+          <button title="Delete" className="text-red-400 hover:text-red-600" onClick={() => setDeleteTarget(r)}>
+            🗑️
           </button>
         </div>
       ),
@@ -107,6 +132,16 @@ export default function TeamReports() {
       </div>
 
       {viewReport && <ReportResultModal report={viewReport} onClose={() => setViewReport(null)} />}
+      {deleteTarget && (
+        <ConfirmDialog
+          title="Delete Report"
+          message={`Are you sure you want to delete "${deleteTarget.name}"? This cannot be undone.`}
+          confirmLabel="Delete"
+          danger
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={handleDelete}
+        />
+      )}
     </div>
   );
 }

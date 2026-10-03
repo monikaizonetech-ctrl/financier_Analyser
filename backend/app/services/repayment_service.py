@@ -80,7 +80,7 @@ def calculate_repayment_capacity(
                 ignored_reversals += credit
                 c_class = "IGNORED (REVERSAL)"
                 c_reason = "Matched reversal keyword"
-            elif any(kw in desc for kw in _own_account_kws) or "internal" in cat:
+            elif any(kw in desc for kw in _own_account_kws) or "internal" in cat or "self" in cat:
                 ignored_own_account += credit
                 c_class = "IGNORED (OWN ACCOUNT)"
                 c_reason = "Matched internal transfer keyword"
@@ -88,10 +88,14 @@ def calculate_repayment_capacity(
                 unclassified_credits += credit
                 c_class = "UNCLASSIFIED CREDIT"
                 c_reason = "Loan disbursal treated as unclassified"
-            elif any(kw in desc for kw in _income_kws) or "income" in cat or "salary" in cat:
+            elif any(kw in desc for kw in ("salary", "payroll", "pay", "sal", "employer", "pension", "interest", "dividend")):
                 total_verified_income += credit
                 c_class = "VERIFIED INCOME"
-                c_reason = "Matched income keyword or category"
+                c_reason = "Matched explicit income pattern"
+            elif cat in ("salary", "income"):
+                total_verified_income += credit
+                c_class = "VERIFIED INCOME"
+                c_reason = "Matched valid income category"
             else:
                 unclassified_credits += credit
                 c_class = "UNCLASSIFIED CREDIT"
@@ -103,11 +107,11 @@ def calculate_repayment_capacity(
             })
         
         elif debit > 0:
-            if any(kw in cat for kw in ("emi", "loan")) or any(kw in desc for kw in _emi_kws):
+            if any(kw in cat for kw in ("emi", "loan", "installment")) or any(kw in desc for kw in _emi_kws):
                 total_emi_paid += debit
                 c_class = "EMI OBLIGATION"
                 c_reason = "Matched EMI/Loan keyword"
-            elif any(kw in desc for kw in _own_account_kws) or "internal" in cat:
+            elif any(kw in desc for kw in _own_account_kws) or "internal" in cat or "self" in cat:
                 ignored_own_account += debit
                 c_class = "IGNORED (OWN ACCOUNT)"
                 c_reason = "Matched internal transfer keyword"
@@ -119,10 +123,14 @@ def calculate_repayment_capacity(
                 ignored_reversals += debit
                 c_class = "IGNORED (REVERSAL)"
                 c_reason = "Matched reversal keyword"
-            elif any(kw in desc for kw in _expense_kws) or cat not in ("", "unclassified", "other"):
+            elif any(kw in desc for kw in ("business", "vendor", "contractor", "supplier", "stock")):
+                unclassified_debits += debit
+                c_class = "BUSINESS EXPENSE"
+                c_reason = "Matched business/vendor keyword"
+            elif any(kw in desc for kw in _expense_kws) or cat in ("food", "shopping", "utilities", "medical", "transport"):
                 total_living_expenses += debit
                 c_class = "VERIFIED LIVING EXPENSE"
-                c_reason = "Matched expense keyword or valid category"
+                c_reason = "Matched personal expense keyword or category"
             else:
                 unclassified_debits += debit
                 c_class = "UNCLASSIFIED DEBIT"
@@ -159,113 +167,73 @@ def calculate_repayment_capacity(
             "message": "Classified living expenses exceed total extracted debits. This indicates double counting or a classification bug."
         }
 
-    average_monthly_income = round(total_verified_income / analysis_months, 2) if total_verified_income > 0 else None
-    existing_emi = round(total_emi_paid / analysis_months, 2) if total_emi_paid > 0 else None
-    average_monthly_living_expenses = round(total_living_expenses / analysis_months, 2)
+    # Use precise daily normalization instead of approximate months
+    if duration_days > 0:
+        average_monthly_income = round((total_verified_income / duration_days) * 30, 2) if total_verified_income > 0 else None
+        existing_emi = round((total_emi_paid / duration_days) * 30, 2) if total_emi_paid > 0 else 0.0
+        average_monthly_living_expenses = round((total_living_expenses / duration_days) * 30, 2)
+    else:
+        average_monthly_income = None
+        existing_emi = 0.0
+        average_monthly_living_expenses = 0.0
     
-    if average_monthly_income is not None and existing_emi is not None:
+    if average_monthly_income is not None:
         net_disposable_income = round(average_monthly_income - existing_emi - average_monthly_living_expenses, 2)
-    else:
-        net_disposable_income = None
-    
-    if average_monthly_income is not None and existing_emi is not None:
         current_foir = round((existing_emi / average_monthly_income) * 100, 2)
-    else:
-        current_foir = None
+        max_total_obligation = round(average_monthly_income * max_foir, 2)
         
-    max_total_obligation = round(average_monthly_income * max_foir, 2) if average_monthly_income is not None else None
-    
-    if existing_emi is not None and max_total_obligation is not None:
         foir_based_additional_emi = round(max_total_obligation - existing_emi, 2)
-        maximum_additional_emi = min(foir_based_additional_emi, net_disposable_income) if net_disposable_income is not None else 0.0
+        disposable_based_emi = max(0.0, net_disposable_income)
+        
+        maximum_additional_emi = round(min(foir_based_additional_emi, disposable_based_emi), 2)
         if maximum_additional_emi < 0:
             maximum_additional_emi = 0.0
     else:
-        foir_based_additional_emi = None
-        maximum_additional_emi = None
-        
-    status = repayment_status
-    if status == "Calculated":
-        if unclassified_debits > 0 and unclassified_credits > 0:
-            status = f"REVIEW REQUIRED — Credit and debit transaction classification incomplete. ₹{unclassified_credits:,.2f} of credits and ₹{unclassified_debits:,.2f} of debits remain unclassified."
-        elif unclassified_debits > 0:
-            status = f"REVIEW REQUIRED — Debit transaction classification incomplete. ₹{unclassified_debits:,.2f} remain unclassified."
-        elif unclassified_credits > 0:
-            status = f"REVIEW REQUIRED — Credit transaction classification incomplete. ₹{unclassified_credits:,.2f} remain unclassified."
-        elif average_monthly_income is None and existing_emi is None:
-            status = "REVIEW REQUIRED — Income classification incomplete; EMI not identified."
-        elif average_monthly_income is None:
-            status = "REVIEW REQUIRED — Verified income could not be established from classified transactions."
-        elif existing_emi is None:
-            status = "REVIEW REQUIRED — Existing EMI obligations could not be identified."
-        elif net_disposable_income is not None and net_disposable_income < 0:
-            status = "Insufficient disposable income"
-            
-    # Do not calculate repayment capacity until both credit and debit classification reconciliation passes
-    if "REVIEW REQUIRED" in status or status == "Validation Failed":
         net_disposable_income = None
         current_foir = None
         max_total_obligation = None
         foir_based_additional_emi = None
         maximum_additional_emi = None
-    
+        
+    status = repayment_status
+    if status == "Calculated":
+        if average_monthly_income is None:
+            status = "Insufficient Data"
+        elif net_disposable_income is not None and net_disposable_income <= 0:
+            status = "No Additional EMI Capacity"
+        elif current_foir is not None and current_foir >= (max_foir * 100):
+            status = "FOIR Limit Reached"
+        elif maximum_additional_emi is not None and maximum_additional_emi > 0:
+            if unclassified_debits > 0 or unclassified_credits > 0:
+                status = "Manual Review Required"
+            else:
+                status = "Additional EMI Capacity Available"
+
     projected_foir = None
     if proposed_emi is not None and existing_emi is not None and average_monthly_income is not None:
         projected_total_emi = existing_emi + proposed_emi
         projected_foir = round((projected_total_emi / average_monthly_income) * 100, 2)
-        if status == "Calculated":
+        if status == "Additional EMI Capacity Available":
             if projected_foir <= (max_foir * 100):
                 status = "Within configured FOIR limit"
             else:
                 status = "Above configured FOIR limit"
 
     status_obj = {
-        "status_code": "Excellent",
-        "title": "Excellent Repayment Capacity",
-        "description": "The applicant shows strong financial stability.",
-        "reason": "Net Disposable Income is sufficient.",
-        "severity": "Success"
+        "status_code": "Calculated",
+        "title": status,
+        "description": f"Classification found ₹{unclassified_credits:,.2f} unclassified credits and ₹{unclassified_debits:,.2f} unclassified debits." if "Review" in status else "Repayment capacity calculated successfully.",
+        "reason": "Based on verified transactions.",
+        "severity": "Warning" if "Review" in status or "Insufficient" in status else "Success"
     }
 
-    if "REVIEW REQUIRED" in status:
-        status_obj = {
-            "status_code": "ReviewRequired",
-            "title": "Manual Review Required",
-            "description": "Transaction classification is incomplete or uncertain.",
-            "reason": status,
-            "severity": "Warning"
-        }
-    elif status == "Validation Failed":
+    if status == "Validation Failed":
         status_obj = {
             "status_code": "ValidationFailed",
             "title": "Validation Failed",
             "description": "Classification anomalies detected.",
             "reason": "Living expenses or income exceeds bounds.",
             "severity": "Error"
-        }
-    elif status == "Insufficient disposable income":
-        status_obj = {
-            "status_code": "HighRisk",
-            "title": "Insufficient Disposable Income",
-            "description": "Net disposable income is negative.",
-            "reason": "Expenses and EMI exceed verified income.",
-            "severity": "High"
-        }
-    elif status == "Within configured FOIR limit":
-        status_obj = {
-            "status_code": "Good",
-            "title": "Good Repayment Capacity",
-            "description": "Applicant is within the maximum FOIR limit.",
-            "reason": "Proposed EMI fits within disposable income.",
-            "severity": "Success"
-        }
-    elif status == "Above configured FOIR limit":
-        status_obj = {
-            "status_code": "HighRisk",
-            "title": "High FOIR Risk",
-            "description": "Proposed EMI pushes FOIR above maximum limit.",
-            "reason": "Requested loan amount exceeds calculated capacity.",
-            "severity": "High"
         }
         
     return {

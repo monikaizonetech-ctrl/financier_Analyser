@@ -21,13 +21,14 @@ const statusStyles = {
 };
 
 export function Badge({ label }) {
+  const displayLabel = label === "Need to analyse" ? "Upload & Analyse" : label;
   return (
     <span
       className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
         statusStyles[label] || "bg-gray-100 text-gray-600 border border-gray-200"
       }`}
     >
-      {label}
+      {displayLabel}
     </span>
   );
 }

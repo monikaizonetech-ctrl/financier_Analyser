@@ -10,11 +10,12 @@ const REPORT_TYPES = [
   { value: "ITR", label: "ITR Analyzer" },
 ];
 
-export default function NewReportModal({ onClose, onCreated }) {
+export default function NewReportModal({ onClose, onCreated, totalReports }) {
   const { notify } = useNotification();
   const navigate = useNavigate();
 
-  const [form, setForm] = useState({ name: "", reference_id: "", report_type: "" });
+  const autoRefId = String((totalReports || 0) + 1);
+  const [form, setForm] = useState({ name: "", reference_id: autoRefId, report_type: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -51,6 +52,15 @@ export default function NewReportModal({ onClose, onCreated }) {
       )}
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
+          <label className="block text-sm font-semibold text-gray-800 mb-1">Reference ID (Auto-Generated)</label>
+          <input
+            className="input-field bg-gray-50 cursor-not-allowed text-gray-500"
+            value={form.reference_id}
+            disabled
+          />
+        </div>
+
+        <div>
           <label className="block text-sm font-semibold text-gray-800 mb-1">
             Report Name <span className="text-red-500">*</span>
           </label>
@@ -60,16 +70,6 @@ export default function NewReportModal({ onClose, onCreated }) {
             placeholder="Enter Report Name"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-semibold text-gray-800 mb-1">Reference ID (Optional)</label>
-          <input
-            className="input-field"
-            placeholder="Enter Reference ID"
-            value={form.reference_id}
-            onChange={(e) => setForm({ ...form, reference_id: e.target.value })}
           />
         </div>
 

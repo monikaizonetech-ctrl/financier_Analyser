@@ -118,7 +118,7 @@ export default function MyReports() {
         <Pagination page={data.page} pageSize={data.page_size} total={data.total} onPageChange={(p) => fetchReports(p)} />
       </div>
 
-      {showNewReport && <NewReportModal onClose={() => setShowNewReport(false)} />}
+      {showNewReport && <NewReportModal onClose={() => setShowNewReport(false)} totalReports={data.total} />}
       {viewReport && <ReportResultModal report={viewReport} onClose={() => setViewReport(null)} />}
       {deleteTarget && (
         <ConfirmDialog

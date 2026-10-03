@@ -2174,14 +2174,17 @@ def build_excel_report(report_name: str, report_type: str, summary: dict) -> byt
             ["Average Monthly Living Expenses", fmt_curr(repay_data.get('average_monthly_living_expenses')), "Calculated", "Derived from living expenses debit categories"],
             ["Net Disposable Income", fmt_curr(repay_data.get('net_disposable_income')), "Calculated", "Income - EMI - Living Expenses"],
             ["Current FOIR", fmt_pct(repay_data.get('current_foir')), "Calculated", "(Existing EMI / Income) * 100"],
-            ["Maximum FOIR", f"{repay_data['max_foir']:.2f}%", "Configured", "Configured Limit"],
+            ["Maximum FOIR", f"{repay_data.get('max_foir', 50.0):.2f}%", "Configured", "Configured Limit"],
             ["Maximum Total Obligation", fmt_curr(repay_data.get('max_total_obligation')), "Calculated", "Income * Max FOIR"],
             ["FOIR-Based Additional EMI", fmt_curr(repay_data.get('foir_based_additional_emi')), "Calculated", "Total Obligation - Existing EMI"],
-            ["Maximum Additional EMI", fmt_curr(repay_data.get('maximum_additional_emi')), "Calculated", "Min(FOIR-based Additional EMI, Net Disposable)"],
-            ["Proposed EMI", fmt_curr(repay_data.get('proposed_emi')), "-", "-"],
-            ["Projected FOIR", fmt_pct(repay_data.get('projected_foir')), "-", "-"],
-            ["Repayment Status", repay_data["status"].get("title", str(repay_data["status"])) if isinstance(repay_data["status"], dict) else str(repay_data["status"]), "-", "-"]
+            ["Maximum Additional EMI", fmt_curr(repay_data.get('maximum_additional_emi')), "Calculated", "Min(FOIR-based Additional EMI, Net Disposable)"]
         ]
+        
+        if repay_data.get("proposed_emi") is not None:
+            rows.append(["Proposed EMI", fmt_curr(repay_data.get('proposed_emi')), "-", "-"])
+            rows.append(["Projected FOIR", fmt_pct(repay_data.get('projected_foir')), "-", "-"])
+            
+        rows.append(["Repayment Status", repay_data["status"].get("title", str(repay_data["status"])) if isinstance(repay_data["status"], dict) else str(repay_data["status"]), "-", "-"])
         
         _write_rows(ws, 3, rows)
         
@@ -4522,8 +4525,9 @@ def _pdf_repayment_capacity_page(elements, styles, a):
             ["Average Monthly Living Expenses", format_currency(repay_data.get('average_monthly_living_expenses')), "Calculated"],
             ["Net Disposable Income", format_currency(repay_data.get('net_disposable_income')), "Calculated"],
             ["Current FOIR", format_pct(repay_data.get('current_foir')), "Calculated"],
-            ["Maximum FOIR Limit", f"{repay_data['max_foir']:.2f}%", "Configured"],
+            ["Maximum FOIR Limit", f"{repay_data.get('max_foir', 50.0):.2f}%", "Configured"],
             ["Maximum Total Obligation", format_currency(repay_data.get('max_total_obligation')), "Calculated"],
+            ["FOIR-Based Additional EMI", format_currency(repay_data.get('foir_based_additional_emi')), "Calculated"],
             ["Maximum Additional EMI", format_currency(repay_data.get('maximum_additional_emi')), "Calculated"]
         ]
         

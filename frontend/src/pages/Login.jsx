@@ -99,13 +99,6 @@ export default function Login() {
             Create one
           </Link>
         </p>
-
-        <div className="mt-6 pt-6 border-t border-gray-100 text-xs text-gray-400">
-          <p className="font-semibold mb-1">Demo credentials (after seeding the DB):</p>
-          <p>Admin: monika@proanalyser.in / Admin@123</p>
-          <p>Manager: ravi.manager@proanalyser.in / Manager@123</p>
-          <p>Member: ananya.member@proanalyser.in / Member@123</p>
-        </div>
       </div>
     </div>
   );

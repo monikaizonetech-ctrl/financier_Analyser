@@ -205,7 +205,7 @@ export default function ContactUs() {
                 </div>
                 <h3 className="font-bold text-gray-900 mb-1">Visit Us</h3>
                 <p className="text-xs text-gray-500 font-medium leading-relaxed">
-                  5th Cross Thillainagar, Tiruchirappalli-620018.
+                  3rd Floor, Aruvi Arcade Complex, 5th Cross Thillainagar, Nort Extension Road, Tiruchirapalli, Tamil Nadu 620018.
                 </p>
               </div>
 
@@ -263,7 +263,7 @@ export default function ContactUs() {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-2 flex-1 min-h-[300px]">
             <div className="w-full h-full rounded-xl overflow-hidden relative">
               <iframe 
-                src="https://maps.google.com/maps?q=iZone%20Technologies%20Tiruchirappalli&t=&z=15&ie=UTF8&iwloc=&output=embed" 
+                src="https://maps.google.com/maps?q=iZone%20Technologies%20Tiruchirappalli&t=h&z=17&ie=UTF8&iwloc=&output=embed" 
                 width="100%" 
                 height="100%" 
                 style={{border: 0}} 

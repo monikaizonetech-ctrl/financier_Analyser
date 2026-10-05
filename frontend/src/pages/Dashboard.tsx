@@ -20,9 +20,9 @@ export default function Dashboard() {
     // Load real submitted applications from localStorage
     const savedAppsStr = localStorage.getItem('financier_applications');
     const savedReportsStr = localStorage.getItem('financier_analyzer_history');
-    
+
     let combinedApps: ApplicationItem[] = [];
-    
+
     if (savedAppsStr) {
       try {
         const apps = JSON.parse(savedAppsStr);
@@ -157,7 +157,7 @@ export default function Dashboard() {
               <span className="text-xs text-slate-500 font-medium">{trendData.length} active period{trendData.length === 1 ? '' : 's'}</span>
             )}
           </div>
-          
+
           <div className="h-72 flex-1 flex items-center justify-center">
             {trendData.length === 0 ? (
               <div className="text-center p-8 text-slate-400">
@@ -172,14 +172,14 @@ export default function Dashboard() {
                 <AreaChart data={trendData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b'}} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b'}} dx={-10} allowDecimals={false} />
-                  <Tooltip 
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} dx={-10} allowDecimals={false} />
+                  <Tooltip
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                   />
                   <Area type="monotone" dataKey="applications" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorUv)" />
@@ -225,9 +225,9 @@ export default function Dashboard() {
                       </td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold
-                          ${app.status === 'Completed' || app.status === 'Verified' ? 'bg-emerald-100 text-emerald-700' : 
-                            app.status === 'Processing' || app.status === 'Pending' ? 'bg-blue-100 text-blue-700' : 
-                            'bg-red-100 text-red-700'}`}>
+                          ${app.status === 'Completed' || app.status === 'Verified' ? 'bg-emerald-100 text-emerald-700' :
+                            app.status === 'Processing' || app.status === 'Pending' ? 'bg-blue-100 text-blue-700' :
+                              'bg-red-100 text-red-700'}`}>
                           {app.status}
                         </span>
                       </td>

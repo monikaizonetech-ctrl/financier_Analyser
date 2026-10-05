@@ -108,7 +108,7 @@ createuser proanalyser_user --pwprompt   # set password to proanalyser_pass, or 
 **2. Backend**
 ```bash
 cd backend
-python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
+python -m venv venv && source fenv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env        # edit DATABASE_URL / JWT_SECRET_KEY as needed
 

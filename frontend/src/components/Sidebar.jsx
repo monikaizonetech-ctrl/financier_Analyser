@@ -37,13 +37,17 @@ export default function Sidebar() {
             </NavLink>
           ))}
 
-        <a
-          href="tel:+916374345280"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-blue-100 hover:bg-white/5 hover:text-white transition-colors"
+        <NavLink
+          to="/contact-us"
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${
+              isActive ? "bg-brand-800 text-white" : "text-blue-100 hover:bg-white/5 hover:text-white"
+            }`
+          }
         >
           <span>📞</span>
           Contact Us
-        </a>
+        </NavLink>
       </nav>
 
       <div className="px-3 pb-6">

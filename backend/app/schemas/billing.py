@@ -40,6 +40,14 @@ class SupportRequestCreate(BaseModel):
     message: str
 
 
+class ContactUsCreate(BaseModel):
+    fullName: str
+    email: str
+    phone: str
+    subject: str
+    message: str
+
+
 class DashboardStats(BaseModel):
     bank_statements_analysed: int
     gst_analysed: int

@@ -11,6 +11,7 @@ import TeamManagement from "./pages/TeamManagement.jsx";
 import Billing from "./pages/Billing.jsx";
 import Help from "./pages/Help.jsx";
 import UploadReport from "./pages/UploadReport.jsx";
+import ContactUs from "./pages/ContactUs.jsx";
 
 export default function App() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="/team-reports" element={<TeamReports />} />
           <Route path="/billing" element={<Billing />} />
           <Route path="/help" element={<Help />} />
+          <Route path="/contact-us" element={<ContactUs />} />
         </Route>
       </Route>
 

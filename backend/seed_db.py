@@ -49,9 +49,27 @@ def seed_database():
     db = SessionLocal()
 
     try:
+        sysadmin_email = "admin@financier.com"
         admin_email = "monika@izoneanalyzer.in"
         manager_email = "ravi.manager@izoneanalyzer.in"
         member_email = "ananya.member@izoneanalyzer.in"
+
+        # 0. System Administrator (Generic fallback)
+        sysadmin = db.query(User).filter(func.lower(User.email) == sysadmin_email.lower()).first()
+        if not sysadmin:
+            sysadmin = User(
+                name="System Administrator",
+                email=sysadmin_email,
+                phone="+919000000000",
+                hashed_password=hash_password("admin123"),
+                role=UserRole.ADMIN,
+                status=UserStatus.ACTIVE,
+            )
+            db.add(sysadmin)
+            db.flush()
+            print(f"Created System Admin user: {sysadmin.email}")
+        else:
+            print(f"System Admin user already exists: {sysadmin.email}")
 
         # 1. Admin User
         admin = db.query(User).filter(func.lower(User.email) == admin_email.lower()).first()
@@ -108,15 +126,16 @@ def seed_database():
 
         # 4. Subscriptions
         now = utc_now()
-        for user in (admin, manager, member):
+        for user in (sysadmin, admin, manager, member):
             sub = db.query(Subscription).filter(Subscription.user_id == user.id).first()
             if not sub:
+                credits = 10.0 if user.id == sysadmin.id else 2.5
                 db.add(
                     Subscription(
                         user_id=user.id,
                         plan=PlanType.FREE_TRIAL,
                         status=SubscriptionStatus.ACTIVE,
-                        credits_total=2.5,
+                        credits_total=credits,
                         credits_used=0,
                         started_at=now,
                         expires_at=now + timedelta(days=3),
@@ -202,6 +221,7 @@ def seed_database():
         db.commit()
         print("\nSeed data check/creation completed successfully.")
         print("\nTest login credentials:")
+        print("  SysAdmin-> admin@financier.com / admin123")
         print("  Admin   -> monika@izoneanalyzer.in / Admin@123")
         print("  Manager -> ravi.manager@izoneanalyzer.in / Manager@123")
         print("  Member  -> ananya.member@izoneanalyzer.in / Member@123")

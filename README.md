@@ -130,11 +130,12 @@ npm run dev
 App runs at `http://localhost:5173`.
 
 **5. Test login credentials** (created by `seed_db.py`)
-| Role    | Email                         | Password     |
-|---------|--------------------------------|--------------|
-| Admin   | monika@izoneanalyzer.in        |     |
-| Manager | ravi.manager@izoneanalyzer.in  | Manager@123  |
-| Member  | ananya.member@izoneanalyzer.in | Member@123   |
+| Role     | Email                         | Password     |
+|----------|--------------------------------|--------------|
+| SysAdmin | admin@financier.com            | admin123     |
+| Admin    | monika@izoneanalyzer.in        | Admin@123    |
+| Manager  | ravi.manager@izoneanalyzer.in  | Manager@123  |
+| Member   | ananya.member@izoneanalyzer.in | Member@123   |
 
 *(Note: Domain alias `@proanalyser.in` is also accepted for backward compatibility)*
 

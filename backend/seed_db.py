@@ -36,6 +36,42 @@ def ensure_schema():
             if "authenticity_reasons" not in existing_cols:
                 conn.execute(sa.text("ALTER TABLE report_files ADD COLUMN IF NOT EXISTS authenticity_reasons JSON"))
 
+            # Convert PostgreSQL ENUMs to VARCHAR(50) if present
+            if conn.dialect.name == "postgresql":
+                try:
+                    res = conn.execute(sa.text(
+                        "SELECT column_name, data_type FROM information_schema.columns "
+                        "WHERE table_name = 'report_files' AND column_name IN ('file_status', 'authenticity')"
+                    )).fetchall()
+                    col_types = {row[0]: row[1].lower() for row in res}
+                    if col_types.get("file_status") == "user-defined":
+                        conn.execute(sa.text("ALTER TABLE report_files ALTER COLUMN file_status DROP DEFAULT"))
+                        conn.execute(sa.text("ALTER TABLE report_files ALTER COLUMN file_status TYPE VARCHAR(50) USING file_status::text"))
+                        conn.execute(sa.text("ALTER TABLE report_files ALTER COLUMN file_status SET DEFAULT 'Uploaded'"))
+                    if col_types.get("authenticity") == "user-defined":
+                        conn.execute(sa.text("ALTER TABLE report_files ALTER COLUMN authenticity DROP DEFAULT"))
+                        conn.execute(sa.text("ALTER TABLE report_files ALTER COLUMN authenticity TYPE VARCHAR(50) USING authenticity::text"))
+                        conn.execute(sa.text("ALTER TABLE report_files ALTER COLUMN authenticity SET DEFAULT 'Pending'"))
+                except Exception:
+                    pass
+
+            # Normalize uppercase enum values to Python string values
+            try:
+                conn.execute(sa.text("UPDATE report_files SET file_status = 'Processed' WHERE file_status = 'PROCESSED'"))
+                conn.execute(sa.text("UPDATE report_files SET file_status = 'Uploaded' WHERE file_status = 'UPLOADED'"))
+                conn.execute(sa.text("UPDATE report_files SET file_status = 'Processing' WHERE file_status = 'PROCESSING'"))
+                conn.execute(sa.text("UPDATE report_files SET file_status = 'Failed' WHERE file_status IN ('FAILED', 'ERROR')"))
+                conn.execute(sa.text("UPDATE report_files SET file_status = 'Password required' WHERE file_status = 'PASSWORD_REQUIRED'"))
+                conn.execute(sa.text("UPDATE report_files SET file_status = 'Unlocked' WHERE file_status = 'UNLOCKED'"))
+
+                conn.execute(sa.text("UPDATE report_files SET authenticity = 'Original' WHERE authenticity IN ('VERIFIED', 'ORIGINAL')"))
+                conn.execute(sa.text("UPDATE report_files SET authenticity = 'Pending' WHERE authenticity = 'PENDING'"))
+                conn.execute(sa.text("UPDATE report_files SET authenticity = 'Suspicious' WHERE authenticity = 'SUSPICIOUS'"))
+                conn.execute(sa.text("UPDATE report_files SET authenticity = 'Tampered' WHERE authenticity = 'TAMPERED'"))
+                conn.execute(sa.text("UPDATE report_files SET authenticity = 'Unverifiable' WHERE authenticity = 'UNVERIFIABLE'"))
+            except Exception:
+                pass
+
 
 def get_available_reference_id(db_session, preferred_ref: str) -> str:
     if not db_session.query(Report).filter(Report.reference_id == preferred_ref).first():
@@ -187,21 +223,37 @@ def seed_database():
             db.flush()
             print(f"Created sample report 2: {report2.name} (Ref: {report2.reference_id})")
 
-            # Report file
-            existing_file = db.query(ReportFile).filter(ReportFile.report_id == report2.id).first()
-            if not existing_file:
-                db.add(
-                    ReportFile(
-                        report_id=report2.id,
-                        s_no=1,
-                        file_name="OTHER_BANKS_AND_FINANCIAL_INSTITUTIONS_4821.pdf",
-                        stored_path="uploads/seed/OTHER_BANKS_AND_FINANCIAL_INSTITUTIONS_4821.pdf",
-                        sub_type="Other Banks",
-                        year="2026",
-                        file_status=FileStatus.PROCESSED,
-                        authenticity=FileAuthenticity.VERIFIED,
-                    )
+        # Report file attached to report 2
+        existing_file = db.query(ReportFile).filter(
+            ReportFile.report_id == report2.id,
+            ReportFile.file_name == "OTHER_BANKS_AND_FINANCIAL_INSTITUTIONS_4821.pdf",
+        ).first()
+        if not existing_file:
+            db.add(
+                ReportFile(
+                    report_id=report2.id,
+                    s_no=1,
+                    file_name="OTHER_BANKS_AND_FINANCIAL_INSTITUTIONS_4821.pdf",
+                    stored_path="uploads/seed/OTHER_BANKS_AND_FINANCIAL_INSTITUTIONS_4821.pdf",
+                    sub_type="Other Banks",
+                    year="2026",
+                    file_status=FileStatus.PROCESSED.value,
+                    authenticity=FileAuthenticity.VERIFIED.value,
                 )
+            )
+            db.flush()
+            print(f"Created seed file for report: {report2.name}")
+        else:
+            # Ensure proper values if existing record had outdated values
+            updated = False
+            if existing_file.file_status != FileStatus.PROCESSED.value:
+                existing_file.file_status = FileStatus.PROCESSED.value
+                updated = True
+            if existing_file.authenticity != FileAuthenticity.VERIFIED.value:
+                existing_file.authenticity = FileAuthenticity.VERIFIED.value
+                updated = True
+            if updated:
+                db.flush()
 
         # 6. Sample Transaction
         existing_tx = db.query(Transaction).filter(

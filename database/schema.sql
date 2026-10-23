@@ -34,20 +34,22 @@ CREATE TABLE reports (
     analysed_at     TIMESTAMP
 );
 
-CREATE TYPE file_status AS ENUM ('Uploaded', 'Processing', 'Processed', 'Error');
-CREATE TYPE file_authenticity AS ENUM ('Pending', 'Verified', 'Suspicious');
-
 CREATE TABLE report_files (
     id                  VARCHAR(36) PRIMARY KEY,
     report_id           VARCHAR(36) NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
     s_no                INTEGER NOT NULL,
     file_name           VARCHAR(255) NOT NULL,
     stored_path         VARCHAR(500) NOT NULL,
-    sub_type            VARCHAR(50),
-    year                VARCHAR(20),
+    sub_type            VARCHAR(100),
+    year                VARCHAR(100),
+    bank_name           VARCHAR(100),
+    account_holder      VARCHAR(255),
+    masked_account_no   VARCHAR(50),
     password_protected  BOOLEAN NOT NULL DEFAULT FALSE,
-    file_status         file_status NOT NULL DEFAULT 'Uploaded',
-    authenticity        file_authenticity NOT NULL DEFAULT 'Pending',
+    owner_restricted    BOOLEAN DEFAULT FALSE,
+    authenticity_reasons JSON,
+    file_status         VARCHAR(50) NOT NULL DEFAULT 'Uploaded',
+    authenticity        VARCHAR(50) NOT NULL DEFAULT 'Pending',
     created_at          TIMESTAMP NOT NULL DEFAULT NOW()
 );
 

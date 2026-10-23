@@ -25,6 +25,41 @@ try:
                 conn.execute(text("ALTER TABLE report_files ADD COLUMN IF NOT EXISTS owner_restricted BOOLEAN DEFAULT FALSE"))
             if "authenticity_reasons" not in existing_cols:
                 conn.execute(text("ALTER TABLE report_files ADD COLUMN IF NOT EXISTS authenticity_reasons JSON"))
+
+            # Ensure PostgreSQL ENUMs are converted to VARCHAR(50) and normalized
+            if conn.dialect.name == "postgresql":
+                try:
+                    res = conn.execute(text(
+                        "SELECT column_name, data_type FROM information_schema.columns "
+                        "WHERE table_name = 'report_files' AND column_name IN ('file_status', 'authenticity')"
+                    )).fetchall()
+                    col_types = {row[0]: row[1].lower() for row in res}
+                    if col_types.get("file_status") == "user-defined":
+                        conn.execute(text("ALTER TABLE report_files ALTER COLUMN file_status DROP DEFAULT"))
+                        conn.execute(text("ALTER TABLE report_files ALTER COLUMN file_status TYPE VARCHAR(50) USING file_status::text"))
+                        conn.execute(text("ALTER TABLE report_files ALTER COLUMN file_status SET DEFAULT 'Uploaded'"))
+                    if col_types.get("authenticity") == "user-defined":
+                        conn.execute(text("ALTER TABLE report_files ALTER COLUMN authenticity DROP DEFAULT"))
+                        conn.execute(text("ALTER TABLE report_files ALTER COLUMN authenticity TYPE VARCHAR(50) USING authenticity::text"))
+                        conn.execute(text("ALTER TABLE report_files ALTER COLUMN authenticity SET DEFAULT 'Pending'"))
+                except Exception:
+                    pass
+
+            try:
+                conn.execute(text("UPDATE report_files SET file_status = 'Processed' WHERE file_status = 'PROCESSED'"))
+                conn.execute(text("UPDATE report_files SET file_status = 'Uploaded' WHERE file_status = 'UPLOADED'"))
+                conn.execute(text("UPDATE report_files SET file_status = 'Processing' WHERE file_status = 'PROCESSING'"))
+                conn.execute(text("UPDATE report_files SET file_status = 'Failed' WHERE file_status IN ('FAILED', 'ERROR')"))
+                conn.execute(text("UPDATE report_files SET file_status = 'Password required' WHERE file_status = 'PASSWORD_REQUIRED'"))
+                conn.execute(text("UPDATE report_files SET file_status = 'Unlocked' WHERE file_status = 'UNLOCKED'"))
+
+                conn.execute(text("UPDATE report_files SET authenticity = 'Original' WHERE authenticity IN ('VERIFIED', 'ORIGINAL')"))
+                conn.execute(text("UPDATE report_files SET authenticity = 'Pending' WHERE authenticity = 'PENDING'"))
+                conn.execute(text("UPDATE report_files SET authenticity = 'Suspicious' WHERE authenticity = 'SUSPICIOUS'"))
+                conn.execute(text("UPDATE report_files SET authenticity = 'Tampered' WHERE authenticity = 'TAMPERED'"))
+                conn.execute(text("UPDATE report_files SET authenticity = 'Unverifiable' WHERE authenticity = 'UNVERIFIABLE'"))
+            except Exception:
+                pass
 except Exception:
     pass
 

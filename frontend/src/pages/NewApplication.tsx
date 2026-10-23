@@ -82,9 +82,9 @@ export default function NewApplication() {
             status: 'Verified',
             score: Math.floor(75 + Math.random() * 20),
             keyMetricLabel: moduleId === 'bank' ? 'Avg Balance' : moduleId === 'gst' ? 'Taxable Sales' : moduleId === 'itr' ? 'Gross Total Income' : 'CIBIL Score',
-            keyMetricValue: moduleId === 'bank' ? '₹ 85,000' : moduleId === 'gst' ? '₹ 25.00 Lakhs' : moduleId === 'itr' ? '₹ 10.50 Lakhs' : '760 (0 DPD)',
+            keyMetricValue: moduleId === 'bank' ? 'Rs. 85,000' : moduleId === 'gst' ? 'Rs. 25.00 Lakhs' : moduleId === 'itr' ? 'Rs. 10.50 Lakhs' : '760 (0 DPD)',
             subMetricLabel: moduleId === 'bank' ? 'Net Cashflow' : moduleId === 'gst' ? 'Compliance' : moduleId === 'itr' ? 'Stability' : 'Current FOIR',
-            subMetricValue: moduleId === 'bank' ? '+₹ 28,000/mo' : moduleId === 'gst' ? '100% On-time' : moduleId === 'itr' ? 'Verified' : '28.5%',
+            subMetricValue: moduleId === 'bank' ? '+Rs. 28,000/mo' : moduleId === 'gst' ? '100% On-time' : moduleId === 'itr' ? 'Verified' : '28.5%',
             summaryText: `Successfully analyzed and verified ${file.name} for ${applicantName}. Calculations and compliance checks confirmed.`,
             details: {
               period: 'Current Period (Verified)',
@@ -222,7 +222,7 @@ export default function NewApplication() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Requested Amount (₹) *</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Requested Amount (Rs.) *</label>
                   <input 
                     type="number" 
                     required 

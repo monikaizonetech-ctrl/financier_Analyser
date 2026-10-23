@@ -5,13 +5,13 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
-    const stored = localStorage.getItem("proanalyser_user");
+    const stored = localStorage.getItem("izone_user");
     return stored ? JSON.parse(stored) : null;
   });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("proanalyser_token");
+    const token = localStorage.getItem("izone_token");
     if (!token) {
       setLoading(false);
       return;
@@ -20,11 +20,11 @@ export function AuthProvider({ children }) {
       .get("/auth/me")
       .then((res) => {
         setUser(res.data);
-        localStorage.setItem("proanalyser_user", JSON.stringify(res.data));
+        localStorage.setItem("izone_user", JSON.stringify(res.data));
       })
       .catch(() => {
-        localStorage.removeItem("proanalyser_token");
-        localStorage.removeItem("proanalyser_user");
+        localStorage.removeItem("izone_token");
+        localStorage.removeItem("izone_user");
         setUser(null);
       })
       .finally(() => setLoading(false));
@@ -32,23 +32,23 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const res = await api.post("/auth/login", { email, password });
-    localStorage.setItem("proanalyser_token", res.data.access_token);
-    localStorage.setItem("proanalyser_user", JSON.stringify(res.data.user));
+    localStorage.setItem("izone_token", res.data.access_token);
+    localStorage.setItem("izone_user", JSON.stringify(res.data.user));
     setUser(res.data.user);
     return res.data.user;
   };
 
   const register = async (payload) => {
     const res = await api.post("/auth/register", payload);
-    localStorage.setItem("proanalyser_token", res.data.access_token);
-    localStorage.setItem("proanalyser_user", JSON.stringify(res.data.user));
+    localStorage.setItem("izone_token", res.data.access_token);
+    localStorage.setItem("izone_user", JSON.stringify(res.data.user));
     setUser(res.data.user);
     return res.data.user;
   };
 
   const logout = () => {
-    localStorage.removeItem("proanalyser_token");
-    localStorage.removeItem("proanalyser_user");
+    localStorage.removeItem("izone_token");
+    localStorage.removeItem("izone_user");
     setUser(null);
   };
 

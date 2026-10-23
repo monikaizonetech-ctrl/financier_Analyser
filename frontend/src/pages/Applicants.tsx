@@ -88,9 +88,9 @@ export default function Applicants() {
           status: 'Verified',
           score: Math.floor(80 + Math.random() * 18),
           keyMetricLabel: moduleId === 'bank' ? 'Avg Balance' : moduleId === 'gst' ? 'Taxable Sales' : moduleId === 'itr' ? 'Gross Total Income' : 'CIBIL Score',
-          keyMetricValue: moduleId === 'bank' ? '₹ 82,450' : moduleId === 'gst' ? '₹ 28.50 Lakhs' : moduleId === 'itr' ? '₹ 11.80 Lakhs' : '770 (0 DPD)',
+          keyMetricValue: moduleId === 'bank' ? 'Rs. 82,450' : moduleId === 'gst' ? 'Rs. 28.50 Lakhs' : moduleId === 'itr' ? 'Rs. 11.80 Lakhs' : '770 (0 DPD)',
           subMetricLabel: moduleId === 'bank' ? 'Net Cashflow' : moduleId === 'gst' ? 'Compliance' : moduleId === 'itr' ? 'Stability' : 'Current FOIR',
-          subMetricValue: moduleId === 'bank' ? '+₹ 30,120/mo' : moduleId === 'gst' ? '100% On-time' : moduleId === 'itr' ? 'Verified' : '26.2%',
+          subMetricValue: moduleId === 'bank' ? '+Rs. 30,120/mo' : moduleId === 'gst' ? '100% On-time' : moduleId === 'itr' ? 'Verified' : '26.2%',
           summaryText: `Successfully analyzed and verified ${file.name} for ${currentAppName}. All ledger calculations and compliance checks confirmed.`,
           details: {
             period: 'Recent Period (Verified)',

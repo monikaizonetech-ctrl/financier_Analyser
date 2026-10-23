@@ -5,10 +5,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "ProAnalyser API"
+    PROJECT_NAME: str = "iZone Analyzer API"
     API_V1_PREFIX: str = "/api/v1"
 
-    DATABASE_URL: str = "postgresql://proanalyser_user:proanalyser_pass@localhost:5432/financier_db"
+    DATABASE_URL: str = "postgresql://izone_user:izone_pass@localhost:5432/financier_db"
 
     JWT_SECRET_KEY: str = "change_this_to_a_long_random_secret_key"
     JWT_ALGORITHM: str = "HS256"

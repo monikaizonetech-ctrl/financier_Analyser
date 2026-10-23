@@ -1,6 +1,16 @@
 {
-  "python.defaultInterpreterPath": "c:\\Users\\IZONE 194\\Downloads\\Financier\\backend\\fenv\\Scripts\\python.exe",
+  "python.defaultInterpreterPath": "${workspaceFolder}/backend/fenv/Scripts/python.exe",
   "python.analysis.extraPaths": [
-    "c:\\Users\\IZONE 194\\Downloads\\Financier\\backend"
+    "${workspaceFolder}/backend",
+    "${workspaceFolder}",
+    "./backend",
+    "backend"
+  ],
+  "python.autoComplete.extraPaths": [
+    "${workspaceFolder}/backend",
+    "${workspaceFolder}",
+    "./backend",
+    "backend"
   ]
 }
+

@@ -263,7 +263,7 @@ export default function ContactUs() {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-2 flex-1 min-h-[300px]">
             <div className="w-full h-full rounded-xl overflow-hidden relative">
               <iframe 
-                src="https://maps.google.com/maps?q=iZone%20Technologies%20Tiruchirappalli&t=h&z=17&ie=UTF8&iwloc=&output=embed" 
+                src="https://maps.google.com/maps?q=izone%20Technologies%20Tiruchirappalli&t=h&z=17&ie=UTF8&iwloc=&output=embed" 
                 width="100%" 
                 height="100%" 
                 style={{border: 0}} 
@@ -273,7 +273,7 @@ export default function ContactUs() {
                 title="Google Maps"
               ></iframe>
               <a
-                href="https://www.google.com/maps/place/iZone+Technologies/@10.8237987,78.6864102,855m"
+                href="https://www.google.com/maps/place/izone+Technologies/@10.8237987,78.6864102,855m"
                 target="_blank"
                 rel="noreferrer"
                 className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm text-xs font-semibold text-gray-800 hover:text-[#1e40af] transition-colors flex items-center gap-1.5"

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Modal from "../components/Modal.jsx";
 import api, { apiErrorMessage } from "../api/axios.js";
@@ -14,10 +14,16 @@ export default function NewReportModal({ onClose, onCreated, totalReports }) {
   const { notify } = useNotification();
   const navigate = useNavigate();
 
-  const autoRefId = String((totalReports || 0) + 1);
-  const [form, setForm] = useState({ name: "", reference_id: autoRefId, report_type: "" });
+  const [form, setForm] = useState({ name: "", report_type: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [nextId, setNextId] = useState("Loading...");
+
+  useEffect(() => {
+    api.get("/reports/next-id")
+      .then(res => setNextId(res.data.next_id))
+      .catch(() => setNextId("Error fetching ID"));
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,12 +36,12 @@ export default function NewReportModal({ onClose, onCreated, totalReports }) {
     try {
       const res = await api.post("/reports", {
         name: form.name,
-        reference_id: form.reference_id || undefined,
         report_type: form.report_type,
       });
       notify("Report created. Now upload your files.");
       onCreated?.(res.data);
-      navigate(`/upload-report/${res.data.id}`);
+      const path = res.data.report_type === "GST" ? `/gst-report/${res.data.id}` : `/upload-report/${res.data.id}`;
+      navigate(path);
     } catch (err) {
       setError(apiErrorMessage(err, "Could not create report"));
     } finally {
@@ -54,8 +60,8 @@ export default function NewReportModal({ onClose, onCreated, totalReports }) {
         <div>
           <label className="block text-sm font-semibold text-gray-800 mb-1">Reference ID (Auto-Generated)</label>
           <input
-            className="input-field bg-gray-50 cursor-not-allowed text-gray-500"
-            value={form.reference_id}
+            className="input-field bg-gray-50 cursor-not-allowed text-gray-500 font-medium"
+            value={nextId}
             disabled
           />
         </div>
@@ -90,10 +96,7 @@ export default function NewReportModal({ onClose, onCreated, totalReports }) {
               </option>
             ))}
           </select>
-          <p className="text-xs text-gray-500 mt-2">
-            Not sure which product to choose? View product details, sample inputs, and outputs from{" "}
-            <span className="text-brand-600 font-medium">My Profile</span>.
-          </p>
+
         </div>
 
         <div className="flex justify-end gap-3 pt-2">

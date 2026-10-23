@@ -184,6 +184,68 @@ class TestRobustPDFExtractor(unittest.TestCase):
         self.assertEqual(res["closing_balance"], 82557.0)
         self.assertEqual(res["net_cash_flow"], 32557.0)
 
+    def test_10_account_holder_continuation(self):
+        """Verify that account holder name continuation lines are joined."""
+        from app.services.pdf_extractor import extract_document_metadata
+        
+        class DummyWord:
+            def __init__(self, text, x0, top):
+                self.text = text
+                self.x0 = x0
+                self.top = top
+
+        class DummyLine:
+            def __init__(self, words):
+                self.words = words
+                self.text = " ".join([w.text for w in words])
+                
+        class DummyPage:
+            def __init__(self, lines):
+                self.header_lines = lines
+                self.lines = []
+                self.transaction_lines = []
+                self.footer_lines = []
+                self.raw_tables = []
+
+        class DummyDoc:
+            def __init__(self, pages):
+                self.pages = pages
+                self.lines = []
+                self.raw_debug_text = ''
+                
+        def make_doc(name_parts):
+            lines = []
+            # Labels
+            lines.append(DummyLine([DummyWord("Account", 100, 100), DummyWord("No", 120, 100)]))
+            lines.append(DummyLine([DummyWord("Account", 100, 110), DummyWord("Holder", 120, 110)]))
+            contact_top = 110 + len(name_parts) * 10
+            lines.append(DummyLine([DummyWord("Contact", 100, contact_top), DummyWord("No", 120, contact_top)]))
+            # Values
+            lines.append(DummyLine([DummyWord(":", 155, 100), DummyWord("12345", 160, 100)]))
+            # Name
+            lines.append(DummyLine([DummyWord(":", 155, 110)]))
+            for i, part in enumerate(name_parts):
+                lines.append(DummyLine([DummyWord(part, 160, 110 + i * 10)]))
+            # Contact
+            lines.append(DummyLine([DummyWord(":", 155, contact_top), DummyWord("9999", 160, contact_top)]))
+            
+            return DummyDoc([DummyPage(lines)])
+            
+        # 1-line
+        doc1 = make_doc(["JOHN"])
+        meta1 = extract_document_metadata(doc1)
+        self.assertEqual(meta1["account_holder"], "JOHN")
+        
+        # 2-line
+        doc2 = make_doc(["JOHN", "DOE"])
+        meta2 = extract_document_metadata(doc2)
+        self.assertEqual(meta2["account_holder"], "JOHN DOE")
+        
+        # 3-line
+        doc3 = make_doc(["JOHN", "DOE", "SMITH"])
+        meta3 = extract_document_metadata(doc3)
+        self.assertEqual(meta3["account_holder"], "JOHN DOE SMITH")
+
 
 if __name__ == "__main__":
     unittest.main()

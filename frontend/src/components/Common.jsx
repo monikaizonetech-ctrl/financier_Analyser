@@ -18,10 +18,20 @@ const statusStyles = {
   Active: "bg-emerald-50 text-emerald-700 border border-emerald-200",
   Inactive: "bg-gray-100 text-gray-600 border border-gray-200",
   Pending: "bg-amber-50 text-amber-700 border border-amber-200",
+  Uploaded: "bg-slate-50 text-slate-700 border border-slate-200",
+  "Password required": "bg-amber-50 text-amber-700 border border-amber-300 font-semibold",
+  Unlocked: "bg-blue-50 text-blue-700 border border-blue-200 font-medium",
+  Processed: "bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium",
+  Original: "bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium",
+  Suspicious: "bg-amber-50 text-amber-800 border border-amber-300 font-semibold",
+  Tampered: "bg-red-50 text-red-700 border border-red-300 font-bold",
+  Unverifiable: "bg-purple-50 text-purple-700 border border-purple-200 font-medium",
 };
 
 export function Badge({ label }) {
-  const displayLabel = label === "Need to analyse" ? "Upload & Analyse" : label;
+  let displayLabel = label;
+  if (label === "Need to analyse") displayLabel = "Upload & Analyse";
+
   return (
     <span
       className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${

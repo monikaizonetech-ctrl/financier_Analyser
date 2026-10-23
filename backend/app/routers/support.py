@@ -11,7 +11,7 @@ router = APIRouter(prefix="/support", tags=["Support"])
 
 CONTACT_INFO = {
     "phone": "+91 63743 45280",
-    "email": "contact@proanalyser.in",
+    "email": "contact@iZoneAnalyzer.in",
 }
 
 
@@ -28,7 +28,7 @@ def raise_support_request(payload: SupportRequestCreate, current_user: User = De
         msg = EmailMessage()
         msg.set_content(f"Support Request from: {current_user.email}\nName: {current_user.full_name}\n\nSubject: {payload.subject}\n\nMessage:\n{payload.message}")
         msg["Subject"] = f"Support Request: {payload.subject}"
-        msg["From"] = current_settings.SMTP_USER or "no-reply@proanalyser.in" 
+        msg["From"] = current_settings.SMTP_USER or "no-reply@iZoneAnalyzer.in" 
         msg["To"] = "zara1031998@gmail.com"
 
         if current_settings.SMTP_SERVER and current_settings.SMTP_USER and current_settings.SMTP_PASSWORD:
@@ -64,7 +64,7 @@ def contact_us(payload: ContactUsCreate):
         msg = EmailMessage()
         msg.set_content(f"Name: {payload.fullName}\nEmail: {payload.email}\nPhone: {payload.phone}\n\nMessage:\n{payload.message}")
         msg["Subject"] = payload.subject or "Project Inquiry"
-        msg["From"] = current_settings.SMTP_USER or "no-reply@proanalyser.in" 
+        msg["From"] = current_settings.SMTP_USER or "no-reply@iZoneAnalyzer.in" 
         msg["To"] = "zara1031998@gmail.com"
 
         # Check if SMTP is configured

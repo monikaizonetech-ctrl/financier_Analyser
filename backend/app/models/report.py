@@ -54,15 +54,21 @@ class Report(Base):
 
 class FileStatus(str, enum.Enum):
     UPLOADED = "Uploaded"
+    PASSWORD_REQUIRED = "Password required"
+    UNLOCKED = "Unlocked"
     PROCESSING = "Processing"
     PROCESSED = "Processed"
-    ERROR = "Error"
+    FAILED = "Failed"
+    ERROR = "Failed"
 
 
 class FileAuthenticity(str, enum.Enum):
     PENDING = "Pending"
-    VERIFIED = "Verified"
+    ORIGINAL = "Original"
+    VERIFIED = "Original"
     SUSPICIOUS = "Suspicious"
+    TAMPERED = "Tampered"
+    UNVERIFIABLE = "Unverifiable"
 
 
 class ReportFile(Base):
@@ -76,12 +82,17 @@ class ReportFile(Base):
     s_no: Mapped[int] = mapped_column(Integer, nullable=False)
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)
     stored_path: Mapped[str] = mapped_column(String(500), nullable=False)
-    sub_type: Mapped[str | None] = mapped_column(String(50), nullable=True)   # e.g. ITR Type / Bank name
-    year: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    sub_type: Mapped[str | None] = mapped_column(String(100), nullable=True)   # e.g. ITR Type / Bank name
+    year: Mapped[str | None] = mapped_column(String(100), nullable=True)       # e.g. Statement period / Financial Year
+    bank_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    account_holder: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    masked_account_no: Mapped[str | None] = mapped_column(String(50), nullable=True)
     password_protected: Mapped[bool] = mapped_column(default=False)
+    owner_restricted: Mapped[bool] = mapped_column(default=False)
+    authenticity_reasons: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
-    file_status: Mapped[FileStatus] = mapped_column(Enum(FileStatus), default=FileStatus.UPLOADED)
-    authenticity: Mapped[FileAuthenticity] = mapped_column(Enum(FileAuthenticity), default=FileAuthenticity.PENDING)
+    file_status: Mapped[str] = mapped_column(String(50), default="Uploaded")
+    authenticity: Mapped[str] = mapped_column(String(50), default="Pending")
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

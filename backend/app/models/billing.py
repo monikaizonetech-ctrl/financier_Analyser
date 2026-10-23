@@ -15,7 +15,9 @@ def gen_uuid() -> str:
 class PlanType(str, enum.Enum):
     FREE_TRIAL = "Free Trial"
     PAID_TRIAL = "Paid Trial"
+    BASIC = "Basic"
     STANDARD = "Standard"
+    PREMIUM = "Premium"
     PRO = "Pro"
     ENTERPRISE = "Enterprise"
 

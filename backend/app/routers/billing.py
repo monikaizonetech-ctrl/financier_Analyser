@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -51,34 +51,58 @@ def avail_paid_trial(current_user: User = Depends(get_current_user), db: Session
 
 
 @router.post("/upgrade", response_model=SubscriptionOut)
-def upgrade_plan(plan: PlanType, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def upgrade_plan(plan: str = Query(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     subscription = db.query(Subscription).filter(Subscription.user_id == current_user.id).first()
+    if not subscription:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+
+    plan_normalized = plan.strip().upper()
+    plan_map = {
+        "BASIC": PlanType.BASIC,
+        "STANDARD": PlanType.STANDARD,
+        "PREMIUM": PlanType.PREMIUM,
+        "PRO": PlanType.PRO,
+        "ENTERPRISE": PlanType.ENTERPRISE,
+    }
+    target_plan = plan_map.get(plan_normalized)
+    if not target_plan:
+        for p in PlanType:
+            if p.value.upper() == plan_normalized:
+                target_plan = p
+                break
+    if not target_plan:
+        raise HTTPException(status_code=400, detail=f"Invalid plan '{plan}' for upgrade")
+
     price_map = {
-        PlanType.STANDARD: 999,
+        PlanType.BASIC: 6999,
+        PlanType.STANDARD: 13999,
+        PlanType.PREMIUM: 27999,
         PlanType.PRO: 2999,
         PlanType.ENTERPRISE: 9999,
     }
     credits_map = {
-        PlanType.STANDARD: 25,
+        PlanType.BASIC: 69.99,
+        PlanType.STANDARD: 139.99,
+        PlanType.PREMIUM: 279.99,
         PlanType.PRO: 100,
         PlanType.ENTERPRISE: 500,
     }
-    if plan not in price_map:
-        raise HTTPException(status_code=400, detail="Invalid plan for upgrade")
 
-    subscription.plan = plan
+    subscription.plan = target_plan
     subscription.status = SubscriptionStatus.ACTIVE
-    subscription.credits_total += credits_map[plan]
-    subscription.expires_at = datetime.utcnow() + timedelta(days=30)
+    subscription.credits_total += credits_map[target_plan]
+    subscription.expires_at = datetime.utcnow() + timedelta(days=365)
 
     db.add(
         Transaction(
             user_id=current_user.id,
             type=TransactionType.PLAN_UPGRADE,
-            amount=price_map[plan],
-            description=f"Upgraded to {plan.value} plan",
+            amount=price_map[target_plan],
+            description=f"Upgraded to {target_plan.value} plan ({credits_map[target_plan]} Pro-Credits, Yearly)",
         )
     )
     db.commit()
     db.refresh(subscription)
     return subscription
+
+

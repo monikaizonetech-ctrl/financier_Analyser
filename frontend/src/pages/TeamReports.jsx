@@ -17,11 +17,13 @@ export default function TeamReports() {
   const [viewReport, setViewReport] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
+  const reportPath = (r) => r.report_type === "GST" ? `/gst-report/${r.id}` : `/upload-report/${r.id}`;
+
   const handleRowAction = (report) => {
-    if (report.status === "Ready to use") {
+    if (report.status === "Ready to use" && report.report_type !== "GST") {
       setViewReport(report);
-    } else if (report.status === "Need to analyse") {
-      navigate(`/upload-report/${report.id}`);
+    } else if (report.status === "Need to analyse" || report.report_type === "GST") {
+      navigate(reportPath(report));
     }
   };
 
@@ -61,13 +63,25 @@ export default function TeamReports() {
   }, [searchEmail, searchName]);
 
   const columns = [
-    { key: "name", label: "Report Name", render: (r) => <span className="font-medium text-gray-800">{r.name}</span> },
+    {
+      key: "name",
+      label: "Report Name",
+      render: (r) => (
+        <button
+          onClick={() => navigate(reportPath(r))}
+          className="font-semibold text-brand-700 hover:text-brand-900 hover:underline text-left cursor-pointer"
+          title="Open statement files and analysis"
+        >
+          {r.name}
+        </button>
+      ),
+    },
     { key: "reference_id", label: "Reference ID" },
     {
       key: "status",
       label: "Report Status",
       render: (r) => (
-        <button onClick={() => handleRowAction(r)}>
+        <button onClick={() => handleRowAction(r)} className="cursor-pointer">
           <Badge label={r.status} />
         </button>
       ),
@@ -88,14 +102,21 @@ export default function TeamReports() {
       render: (r) => (
         <div className="flex items-center gap-3">
           <button
-            title="Download"
+            title="Manage Statements / Files"
+            className="text-gray-500 hover:text-brand-600 cursor-pointer text-base"
+            onClick={() => navigate(`/upload-report/${r.id}`)}
+          >
+            📁
+          </button>
+          <button
+            title="Download Report"
             disabled={r.status !== "Ready to use"}
-            className="text-gray-500 hover:text-brand-600 disabled:opacity-30"
+            className="text-gray-500 hover:text-brand-600 disabled:opacity-30 cursor-pointer"
             onClick={() => setViewReport(r)}
           >
             ⬇️
           </button>
-          <button title="Delete" className="text-red-400 hover:text-red-600" onClick={() => setDeleteTarget(r)}>
+          <button title="Delete" className="text-red-400 hover:text-red-600 cursor-pointer" onClick={() => setDeleteTarget(r)}>
             🗑️
           </button>
         </div>

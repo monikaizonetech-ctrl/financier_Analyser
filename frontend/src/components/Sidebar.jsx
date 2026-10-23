@@ -16,7 +16,7 @@ export default function Sidebar() {
   return (
     <aside className="w-64 shrink-0 bg-brand-900 text-white min-h-screen flex flex-col">
       <div className="px-6 py-6">
-        <h1 className="text-2xl font-bold tracking-tight">ProAnalyser</h1>
+        <h1 className="text-2xl font-bold tracking-tight">iZone Analyzer</h1>
       </div>
 
       <nav className="flex-1 px-3 space-y-1">

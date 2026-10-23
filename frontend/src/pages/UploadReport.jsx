@@ -41,6 +41,44 @@ export default function UploadReport() {
   const [showResult, setShowResult] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [fileToDelete, setFileToDelete] = useState(null);
+  const [analysisProgress, setAnalysisProgress] = useState({
+    current: 0,
+    total: 0,
+    percent: 0,
+    message: "",
+    stage: "idle",
+  });
+
+  // Password Unlock & Authenticity Modal States
+  const [unlockModalFile, setUnlockModalFile] = useState(null);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [unlockError, setUnlockError] = useState("");
+  const [unlocking, setUnlocking] = useState(false);
+  const [attempts, setAttempts] = useState({});
+  const [lockouts, setLockouts] = useState({});
+  const [reasonsPopoverFile, setReasonsPopoverFile] = useState(null);
+
+  // 60-second lockout timer countdown
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setLockouts((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const [id, sec] of Object.entries(next)) {
+          if (sec > 1) {
+            next[id] = sec - 1;
+            changed = true;
+          } else if (sec === 1) {
+            delete next[id];
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const fetchReport = async () => {
     try {
@@ -55,6 +93,28 @@ export default function UploadReport() {
     fetchReport();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reportId]);
+
+  useEffect(() => {
+    if (report?.status === "Processing" && !analysing) {
+      setAnalysing(true);
+      const pollInterval = setInterval(async () => {
+        try {
+          const pRes = await api.get(`/reports/${reportId}/progress`);
+          if (pRes?.data) {
+            setAnalysisProgress(pRes.data);
+            if (pRes.data.status !== "Processing") {
+              clearInterval(pollInterval);
+              setAnalysing(false);
+              fetchReport();
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }, 400);
+      return () => clearInterval(pollInterval);
+    }
+  }, [report?.status, analysing, reportId]);
 
   const processUploadFiles = async (files) => {
     if (!files || files.length === 0) return;
@@ -104,20 +164,94 @@ export default function UploadReport() {
     }
   };
 
+  const hasLockedFiles = report?.files?.some((f) => 
+    f.file_status === "Password required" || 
+    (f.password_protected && f.file_status !== "Processed" && f.file_status !== "Unlocked")
+  );
+  const allProcessed = (report?.files?.length || 0) > 0 && report.files.every((f) => f.file_status === "Processed");
+
+  const handleUnlockSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (!unlockModalFile || !passwordInput) return;
+    const fId = unlockModalFile.id;
+    if (lockouts[fId] > 0) return;
+
+    setUnlocking(true);
+    setUnlockError("");
+    try {
+      await api.post(`/reports/${reportId}/files/${fId}/unlock`, {
+        password: passwordInput,
+      });
+      notify("Statement unlocked successfully");
+      setAttempts((prev) => ({ ...prev, [fId]: 0 }));
+      setPasswordInput("");
+      setUnlockModalFile(null);
+      await fetchReport();
+    } catch (err) {
+      const currentAttempts = (attempts[fId] || 0) + 1;
+      setAttempts((prev) => ({ ...prev, [fId]: currentAttempts }));
+      if (currentAttempts >= 5) {
+        setLockouts((prev) => ({ ...prev, [fId]: 60 }));
+        setUnlockError("Incorrect password. 5 attempts reached. Row locked for 60 seconds.");
+        setTimeout(() => {
+          setUnlockModalFile(null);
+          setPasswordInput("");
+        }, 1800);
+      } else {
+        setUnlockError(`Incorrect password, try again (${5 - currentAttempts} attempts remaining)`);
+      }
+    } finally {
+      setUnlocking(false);
+    }
+  };
+
   const handleAnalyse = async () => {
     if (!report?.files?.length) {
       notify("Please upload at least one statement file before analysing", "warning");
       return;
     }
+    if (hasLockedFiles) {
+      notify("Please unlock all password-protected files before starting analysis", "warning");
+      return;
+    }
     setAnalysing(true);
+    setAnalysisProgress({
+      current: 0,
+      total: 0,
+      percent: 0,
+      message: "Initializing analysis...",
+      stage: "starting",
+    });
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const pRes = await api.get(`/reports/${reportId}/progress`);
+        if (pRes?.data) {
+          setAnalysisProgress(pRes.data);
+        }
+      } catch {
+        // silent polling error
+      }
+    }, 350);
+
     try {
-      const res = await api.post(`/reports/${reportId}/analyse`);
+      const res = await api.post(`/reports/${reportId}/analyse`, {});
+      setAnalysisProgress({
+        current: 100,
+        total: 100,
+        percent: 100,
+        message: "Analysis complete. Your report is ready!",
+        stage: "completed",
+      });
+      // Brief pause to allow the user to view 100% completion
+      await new Promise((resolve) => setTimeout(resolve, 500));
       setReport(res.data);
       notify("Analysis complete. Your report is ready.");
       setShowResult(true);
     } catch (err) {
       notify(apiErrorMessage(err, "Analysis failed"), "error");
     } finally {
+      clearInterval(pollInterval);
       setAnalysing(false);
     }
   };
@@ -182,7 +316,7 @@ export default function UploadReport() {
           </div>
 
           <div className="flex items-center gap-2">
-            {report.status === "Ready to use" && (
+            {report.status === "Ready to use" && allProcessed && (
               <button
                 onClick={() => setShowResult(true)}
                 className="inline-flex items-center gap-1.5 bg-white text-brand-700 hover:bg-brand-50 text-xs font-semibold px-3 py-2 rounded-lg shadow-sm transition-all"
@@ -342,15 +476,64 @@ export default function UploadReport() {
                           <span className="font-semibold text-gray-800 text-sm truncate max-w-xs" title={f.file_name}>
                             {f.file_name}
                           </span>
+                          {f.bank_name && f.bank_name !== "-" && (
+                            <span className="text-[11px] text-gray-500 font-normal">
+                              • {f.bank_name}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-gray-600 text-xs font-medium">{f.sub_type || "-"}</td>
                       <td className="px-6 py-4 text-gray-600 text-xs font-medium">{f.year || "-"}</td>
                       <td className="px-6 py-4">
-                        <Badge label={f.file_status} />
+                        <div className="flex items-center gap-2">
+                          <Badge label={f.file_status} />
+                          {(f.file_status === "Password required" || (f.password_protected && f.file_status !== "Processed" && f.file_status !== "Unlocked")) && (
+                            lockouts[f.id] > 0 ? (
+                              <span className="text-[11px] font-semibold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded">
+                                Locked ({lockouts[f.id]}s)
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setUnlockModalFile(f);
+                                  setPasswordInput("");
+                                  setUnlockError("");
+                                  setShowPassword(false);
+                                }}
+                                className="text-[11px] font-semibold text-brand-700 bg-brand-50 hover:bg-brand-100 border border-brand-300 px-2.5 py-1 rounded-md transition-colors shadow-2xs inline-flex items-center gap-1 cursor-pointer hover:shadow-xs active:scale-95"
+                              >
+                                🔑 Enter password
+                              </button>
+                            )
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
-                        <Badge label={f.authenticity} />
+                        <div className="flex items-center gap-2">
+                          <Badge label={f.authenticity} />
+                          {f.password_protected && (
+                            <span title="Original file was encrypted/password-protected" className="text-sm">
+                              🔒
+                            </span>
+                          )}
+                          {f.owner_restricted && (
+                            <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200" title="Restricted PDF opened with reader permissions">
+                              Restricted PDF (opened)
+                            </span>
+                          )}
+                          {f.authenticity_reasons && f.authenticity_reasons.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setReasonsPopoverFile(f)}
+                              className="text-gray-400 hover:text-brand-600 text-xs p-1 rounded-full hover:bg-gray-100 transition-colors"
+                              title="View authenticity checks & details"
+                            >
+                              ℹ️
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <button
@@ -370,6 +553,238 @@ export default function UploadReport() {
             </table>
           </div>
         </div>
+
+        {/* Real-time Analysis Progress Card */}
+        {analysing && (
+          <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/60 border border-slate-200/80 p-5 sm:p-6 overflow-hidden relative transition-all duration-300">
+            {/* Top Accent Bar */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-emerald-500"></div>
+            
+            {/* Ambient Background Light */}
+            <div className="absolute -top-12 -right-12 w-48 h-48 bg-blue-400/10 rounded-full blur-3xl pointer-events-none"></div>
+
+            {/* Header: Title, Live Tag and Stats */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-3">
+                <span className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-600"></span>
+                </span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-slate-900 tracking-tight">
+                      Live Statement Analysis Progress
+                    </h4>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse"></span>
+                      LIVE STREAM
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5 font-normal">
+                    Real-time document parser, OCR &amp; transactional classification active
+                  </p>
+                </div>
+              </div>
+
+              {/* Progress Count Badge */}
+              <div className="flex items-center gap-3 self-start sm:self-center bg-slate-50/90 px-3.5 py-1.5 rounded-xl border border-slate-200/80 shadow-xs">
+                {analysisProgress.total > 0 && (
+                  <span className="text-xs font-medium text-slate-600">
+                    Page <strong className="text-slate-900 font-bold">{analysisProgress.current}</strong> of{" "}
+                    <strong className="text-slate-700 font-semibold">{analysisProgress.total}</strong>
+                  </span>
+                )}
+                <span className="text-xs font-mono font-extrabold text-white bg-gradient-to-r from-blue-600 to-indigo-600 px-2.5 py-0.5 rounded-md shadow-xs shadow-blue-500/20">
+                  {analysisProgress.percent}%
+                </span>
+              </div>
+            </div>
+
+            {/* Vibrant High-Contrast Progress Bar Track */}
+            <div className="relative my-2">
+              <div className="h-4 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200/90 shadow-inner relative">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 relative transition-all duration-300 ease-out flex items-center justify-end shadow-xs overflow-hidden"
+                  style={{
+                    width: `${Math.min(Math.max(analysisProgress.percent || 0, 3), 100)}%`,
+                  }}
+                >
+                  {/* Smooth Shimmer Glow passing through */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/35 to-transparent animate-shimmer pointer-events-none rounded-full"></div>
+
+                  {/* Leading Spark Tip */}
+                  <div className="relative z-10 h-full w-2.5 bg-white rounded-full shadow-[0_0_8px_rgba(255,255,255,0.9)] flex items-center justify-center mr-0.5">
+                    <div className="w-0.5 h-2 bg-blue-500 rounded-full"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Current Status Message and Feed Indicator */}
+            <div className="mt-2.5 mb-4 flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1.5">
+              <div className="flex items-center gap-2 text-slate-800">
+                <svg className="w-4 h-4 text-blue-600 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+                <span className="font-semibold text-slate-900">
+                  {analysisProgress.message || "Processing statement data..."}
+                </span>
+              </div>
+              <span className="text-slate-500 font-medium text-[11px] sm:text-right flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                {analysisProgress.percent >= 100 ? "Reconciliation complete" : "Extracting financial data in real time..."}
+              </span>
+            </div>
+
+            {/* Multi-stage Milestones Stepper */}
+            <div className="pt-3 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              {/* Step 1: Ingestion & Reading */}
+              {(() => {
+                const done = analysisProgress.percent >= 15;
+                const active = analysisProgress.percent > 0 && analysisProgress.percent < 15;
+                return (
+                  <div
+                    className={`flex items-center gap-2.5 p-2 rounded-xl border text-xs transition-all ${
+                      done
+                        ? "bg-emerald-50/70 border-emerald-200/80 text-emerald-900"
+                        : active
+                        ? "bg-blue-50/90 border-blue-400 text-blue-950 shadow-xs ring-2 ring-blue-500/20"
+                        : "bg-slate-50/60 border-slate-200/60 text-slate-400"
+                    }`}
+                  >
+                    <div
+                      className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                        done
+                          ? "bg-emerald-600 text-white shadow-2xs"
+                          : active
+                          ? "bg-blue-600 text-white animate-pulse"
+                          : "bg-slate-200 text-slate-500"
+                      }`}
+                    >
+                      {done ? "✓" : active ? "1" : "1"}
+                    </div>
+                    <div className="truncate">
+                      <p className="font-semibold text-[11px] truncate">Ingestion</p>
+                      <p className="text-[10px] text-slate-500 truncate">
+                        {done ? "Verified" : active ? "Reading..." : "Queued"}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Step 2: Page Extraction */}
+              {(() => {
+                const done = analysisProgress.percent >= 85;
+                const active = analysisProgress.percent >= 15 && analysisProgress.percent < 85;
+                return (
+                  <div
+                    className={`flex items-center gap-2.5 p-2 rounded-xl border text-xs transition-all ${
+                      done
+                        ? "bg-emerald-50/70 border-emerald-200/80 text-emerald-900"
+                        : active
+                        ? "bg-blue-50/90 border-blue-400 text-blue-950 shadow-xs ring-2 ring-blue-500/20"
+                        : "bg-slate-50/60 border-slate-200/60 text-slate-400"
+                    }`}
+                  >
+                    <div
+                      className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                        done
+                          ? "bg-emerald-600 text-white shadow-2xs"
+                          : active
+                          ? "bg-blue-600 text-white animate-pulse"
+                          : "bg-slate-200 text-slate-500"
+                      }`}
+                    >
+                      {done ? "✓" : active ? "2" : "2"}
+                    </div>
+                    <div className="truncate">
+                      <p className="font-semibold text-[11px] truncate">Page OCR</p>
+                      <p className="text-[10px] text-slate-500 truncate">
+                        {done
+                          ? "Complete"
+                          : active
+                          ? `Extracting ${analysisProgress.total ? `${analysisProgress.current}/${analysisProgress.total}` : "..."}`
+                          : "Queued"}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Step 3: Categorization */}
+              {(() => {
+                const done = analysisProgress.percent >= 98;
+                const active = analysisProgress.percent >= 85 && analysisProgress.percent < 98;
+                return (
+                  <div
+                    className={`flex items-center gap-2.5 p-2 rounded-xl border text-xs transition-all ${
+                      done
+                        ? "bg-emerald-50/70 border-emerald-200/80 text-emerald-900"
+                        : active
+                        ? "bg-blue-50/90 border-blue-400 text-blue-950 shadow-xs ring-2 ring-blue-500/20"
+                        : "bg-slate-50/60 border-slate-200/60 text-slate-400"
+                    }`}
+                  >
+                    <div
+                      className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                        done
+                          ? "bg-emerald-600 text-white shadow-2xs"
+                          : active
+                          ? "bg-blue-600 text-white animate-pulse"
+                          : "bg-slate-200 text-slate-500"
+                      }`}
+                    >
+                      {done ? "✓" : active ? "3" : "3"}
+                    </div>
+                    <div className="truncate">
+                      <p className="font-semibold text-[11px] truncate">Taxonomy</p>
+                      <p className="text-[10px] text-slate-500 truncate">
+                        {done ? "Categorized" : active ? "Classifying..." : "Queued"}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Step 4: Reconciliation */}
+              {(() => {
+                const done = analysisProgress.percent >= 100;
+                const active = analysisProgress.percent >= 98 && analysisProgress.percent < 100;
+                return (
+                  <div
+                    className={`flex items-center gap-2.5 p-2 rounded-xl border text-xs transition-all ${
+                      done
+                        ? "bg-emerald-50/70 border-emerald-200/80 text-emerald-900"
+                        : active
+                        ? "bg-blue-50/90 border-blue-400 text-blue-950 shadow-xs ring-2 ring-blue-500/20"
+                        : "bg-slate-50/60 border-slate-200/60 text-slate-400"
+                    }`}
+                  >
+                    <div
+                      className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                        done
+                          ? "bg-emerald-600 text-white shadow-2xs"
+                          : active
+                          ? "bg-blue-600 text-white animate-pulse"
+                          : "bg-slate-200 text-slate-500"
+                      }`}
+                    >
+                      {done ? "✓" : active ? "4" : "4"}
+                    </div>
+                    <div className="truncate">
+                      <p className="font-semibold text-[11px] truncate">Reconciliation</p>
+                      <p className="text-[10px] text-slate-500 truncate">
+                        {done ? "Integrity OK" : active ? "Verifying..." : "Queued"}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        )}
 
         {/* Bottom Actions Card */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -393,8 +808,11 @@ export default function UploadReport() {
             </button>
 
             <button
-              className="btn-primary flex-1 sm:flex-none text-xs font-semibold py-2.5 px-6 shadow-sm inline-flex items-center justify-center gap-2"
-              disabled={analysing || report.files.length === 0}
+              className={`btn-primary flex-1 sm:flex-none text-xs font-semibold py-2.5 px-6 shadow-sm inline-flex items-center justify-center gap-2 ${
+                (analysing || report.files.length === 0 || hasLockedFiles) ? "opacity-60 cursor-not-allowed" : ""
+              }`}
+              disabled={analysing || report.files.length === 0 || hasLockedFiles}
+              title={hasLockedFiles ? "Unlock password-protected files before starting analysis" : ""}
               onClick={handleAnalyse}
             >
               {analysing ? (
@@ -403,7 +821,11 @@ export default function UploadReport() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                   </svg>
-                  Processing Analysis...
+                  <span>
+                    {analysisProgress.total > 0
+                      ? `${analysisProgress.percent}% (Page ${analysisProgress.current}/${analysisProgress.total})`
+                      : `${analysisProgress.percent ? `${analysisProgress.percent}%` : "Processing..."}`}
+                  </span>
                 </>
               ) : (
                 <>
@@ -417,7 +839,13 @@ export default function UploadReport() {
 
             {report.status === "Ready to use" && (
               <button
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs px-4 py-2.5 rounded-md transition-colors shadow-sm inline-flex items-center gap-1.5"
+                className={`text-xs font-medium px-4 py-2.5 rounded-md transition-colors shadow-sm inline-flex items-center gap-1.5 ${
+                  allProcessed
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+                    : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                }`}
+                disabled={!allProcessed}
+                title={!allProcessed ? "Every file must be Unlocked and Processed before viewing report" : ""}
                 onClick={() => setShowResult(true)}
               >
                 View Report Output
@@ -426,6 +854,129 @@ export default function UploadReport() {
           </div>
         </div>
       </main>
+
+      {/* Enter Password Modal */}
+      {unlockModalFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md bg-white rounded-xl shadow-2xl border border-gray-200 p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <span>🔒</span> Enter PDF Password
+              </h3>
+              <button
+                onClick={() => setUnlockModalFile(null)}
+                className="text-gray-400 hover:text-gray-600 text-xl font-bold leading-none"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div>
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">File Name</p>
+              <p className="text-sm font-semibold text-gray-900 truncate mt-0.5">{unlockModalFile.file_name}</p>
+            </div>
+
+            <form onSubmit={handleUnlockSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Document Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    disabled={unlocking || (lockouts[unlockModalFile.id] > 0)}
+                    placeholder="Enter password to unlock..."
+                    autoFocus
+                    className="w-full text-sm px-3.5 py-2.5 pr-16 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-600 hover:text-gray-900 font-medium px-2 py-1 rounded bg-gray-100 hover:bg-gray-200"
+                  >
+                    {showPassword ? "Hide" : "Show"}
+                  </button>
+                </div>
+                {unlockError && (
+                  <p className="text-xs text-red-600 mt-1.5 font-medium flex items-center gap-1">
+                    <span>⚠️</span> {unlockError}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  className="btn-secondary text-xs"
+                  onClick={() => setUnlockModalFile(null)}
+                  disabled={unlocking}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={unlocking || !passwordInput.trim() || (lockouts[unlockModalFile.id] > 0)}
+                  className="btn-primary text-xs font-semibold px-4 py-2 inline-flex items-center gap-2"
+                >
+                  {unlocking ? "Decrypting..." : "Unlock"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Authenticity Findings Modal / Popover */}
+      {reasonsPopoverFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-lg bg-white rounded-xl shadow-2xl border border-gray-200 p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <span>🛡️</span> Authenticity Inspection Findings
+              </h3>
+              <button
+                onClick={() => setReasonsPopoverFile(null)}
+                className="text-gray-400 hover:text-gray-600 text-xl font-bold leading-none"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div>
+              <p className="text-xs text-gray-500 font-medium">File: <span className="text-gray-800 font-semibold">{reasonsPopoverFile.file_name}</span></p>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-xs text-gray-500">Evaluation:</span>
+                <Badge label={reasonsPopoverFile.authenticity} />
+                {reasonsPopoverFile.password_protected && (
+                  <span className="text-xs text-gray-600 flex items-center gap-1">
+                    🔒 Password Protected
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg p-3.5 border border-gray-200 max-h-60 overflow-y-auto">
+              <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Detailed Forensic Checks</h4>
+              <ul className="text-xs space-y-1.5 text-gray-700 list-disc list-inside">
+                {(reasonsPopoverFile.authenticity_reasons || ["No specific forensic anomalies found"]).map((r, i) => (
+                  <li key={i} className="leading-relaxed">{r}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button
+                className="btn-secondary text-xs"
+                onClick={() => setReasonsPopoverFile(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Confirmation Modal on File Deletion */}
       {fileToDelete && (

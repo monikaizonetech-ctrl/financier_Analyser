@@ -16,12 +16,12 @@ Base.metadata.create_all(bind=engine)
 db = SessionLocal()
 
 try:
-    if db.query(User).filter(User.email == "monika@proanalyser.in").first():
+    if db.query(User).filter(User.email == "monika@iZoneAnalyzer.in").first():
         print("Seed data already present. Skipping.")
     else:
         admin = User(
             name="Monika",
-            email="monika@proanalyser.in",
+            email="monika@izoneAnalyzer.in",
             phone="+919363778750",
             hashed_password=hash_password("Admin@123"),
             role=UserRole.ADMIN,
@@ -32,7 +32,7 @@ try:
 
         manager = User(
             name="Ravi Kumar",
-            email="ravi.manager@proanalyser.in",
+            email="ravi.manager@izoneAnalyzer.in",
             phone="+919876543210",
             hashed_password=hash_password("Manager@123"),
             role=UserRole.MANAGER,
@@ -41,7 +41,7 @@ try:
         )
         member = User(
             name="Ananya Sharma",
-            email="ananya.member@proanalyser.in",
+            email="ananya.member@izoneAnalyzer.in",
             phone="+919876500000",
             hashed_password=hash_password("Member@123"),
             role=UserRole.MEMBER,
@@ -66,14 +66,14 @@ try:
 
         report1 = Report(
             name="BANK (BSA)",
-            reference_id="20260820102702_A1B2",
+            reference_id="1",
             report_type=ReportType.BSA,
             status=ReportStatus.NEED_TO_ANALYSE,
             owner_id=admin.id,
         )
         report2 = Report(
             name="BANKSTATEMENT (BSA Reports)",
-            reference_id="20260820103500_C3D4",
+            reference_id="2",
             report_type=ReportType.BSA,
             status=ReportStatus.READY_TO_USE,
             owner_id=admin.id,
@@ -121,8 +121,8 @@ try:
         db.commit()
         print("Seed data created successfully.")
         print("\nTest login credentials:")
-        print("  Admin   -> monika@proanalyser.in / Admin@123")
-        print("  Manager -> ravi.manager@proanalyser.in / Manager@123")
-        print("  Member  -> ananya.member@proanalyser.in / Member@123")
+        print("  Admin   -> monika@izoneAnalyzer.in / Admin@123")
+        print("  Manager -> ravi.manager@izoneAnalyzer.in / Manager@123")
+        print("  Member  -> ananya.member@izoneAnalyzer.in / Member@123")
 finally:
     db.close()

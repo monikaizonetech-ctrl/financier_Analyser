@@ -132,9 +132,11 @@ App runs at `http://localhost:5173`.
 **5. Test login credentials** (created by `seed_db.py`)
 | Role    | Email                         | Password     |
 |---------|--------------------------------|--------------|
-| Admin   | monika@proanalyser.in          | Admin@123    |
-| Manager | ravi.manager@proanalyser.in    | Manager@123  |
-| Member  | ananya.member@proanalyser.in   | Member@123   |
+| Admin   | monika@izoneanalyzer.in        |     |
+| Manager | ravi.manager@izoneanalyzer.in  | Manager@123  |
+| Member  | ananya.member@izoneanalyzer.in | Member@123   |
+
+*(Note: Domain alias `@proanalyser.in` is also accepted for backward compatibility)*
 
 You can also register a brand-new workspace from the **Create one** link on the login page —
 the first user of a workspace is always its Admin.

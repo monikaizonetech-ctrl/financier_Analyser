@@ -127,6 +127,8 @@ def reconcile_transactions(
     rows: list[dict],
     opening_balance: float | None = None,
     extracted_closing_balance: float | None = None,
+    footer_total_credit: float | None = None,
+    footer_total_debit: float | None = None,
 ) -> ReconciliationReport:
     """
     Performs comprehensive financial validation and reconciliation
@@ -191,6 +193,30 @@ def reconcile_transactions(
                 expected_value=expected_closing,
                 actual_value=actual_closing,
                 difference=closing_diff,
+            )
+        )
+
+    if footer_total_credit is not None and abs(total_income - footer_total_credit) > 0.05:
+        discrepancies.append(
+            Discrepancy(
+                type=DiscrepancyType.MISSING_TRANSACTIONS,
+                severity=ValidationStatus.ERROR,
+                message=f"Statement footer credit total ({footer_total_credit:.2f}) does not match extracted credit total ({total_income:.2f}).",
+                expected_value=footer_total_credit,
+                actual_value=total_income,
+                difference=round(total_income - footer_total_credit, 2),
+            )
+        )
+
+    if footer_total_debit is not None and abs(total_expense - footer_total_debit) > 0.05:
+        discrepancies.append(
+            Discrepancy(
+                type=DiscrepancyType.MISSING_TRANSACTIONS,
+                severity=ValidationStatus.ERROR,
+                message=f"Statement footer debit total ({footer_total_debit:.2f}) does not match extracted debit total ({total_expense:.2f}).",
+                expected_value=footer_total_debit,
+                actual_value=total_expense,
+                difference=round(total_expense - footer_total_debit, 2),
             )
         )
 
@@ -293,7 +319,7 @@ def reconcile_transactions(
             same_amt = (r1.get("debit") == r2.get("debit")) and (r1.get("credit") == r2.get("credit"))
             same_desc = r1.get("description", "").strip().lower() == r2.get("description", "").strip().lower()
 
-            if same_date and same_amt and same_desc and (r1.get("debit", 0) > 0 or r1.get("credit", 0) > 0):
+            if same_date and same_amt and same_desc and ((r1.get("debit") or 0.0) > 0 or (r1.get("credit") or 0.0) > 0):
                 # Check if running balance moved
                 b1, b2 = r1.get("balance"), r2.get("balance")
                 if b1 is not None and b2 is not None and b1 == b2:
@@ -338,7 +364,7 @@ def reconcile_transactions(
             f"Validation Status: {overall_status.value}. {len(discrepancies)} discrepancy(ies) detected."
         )
         for d in discrepancies[:3]:
-            summary_notes.append(f"• {d.message}")
+            summary_notes.append(f"- {d.message}")
 
     return ReconciliationReport(
         status=overall_status,

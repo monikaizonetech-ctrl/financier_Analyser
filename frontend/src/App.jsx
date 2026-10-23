@@ -9,8 +9,10 @@ import MyReports from "./pages/MyReports.jsx";
 import TeamReports from "./pages/TeamReports.jsx";
 import TeamManagement from "./pages/TeamManagement.jsx";
 import Billing from "./pages/Billing.jsx";
+import Pricing from "./pages/Pricing.jsx";
 import Help from "./pages/Help.jsx";
 import UploadReport from "./pages/UploadReport.jsx";
+import GSTUploadReport from "./pages/GSTUploadReport.jsx";
 import ContactUs from "./pages/ContactUs.jsx";
 
 export default function App() {
@@ -19,9 +21,12 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
 
-      {/* Full-screen upload workflow (no sidebar), still auth-protected */}
+      {/* Full-screen workflows (no sidebar), still auth-protected */}
       <Route element={<ProtectedRoute />}>
         <Route path="/upload-report/:reportId" element={<UploadReport />} />
+        <Route path="/gst-report/:reportId" element={<GSTUploadReport />} />
+        <Route path="/billing" element={<Billing />} />
+        <Route path="/plans" element={<Pricing />} />
       </Route>
 
       <Route element={<ProtectedRoute />}>
@@ -29,7 +34,6 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/my-reports" element={<MyReports />} />
           <Route path="/team-reports" element={<TeamReports />} />
-          <Route path="/billing" element={<Billing />} />
           <Route path="/help" element={<Help />} />
           <Route path="/contact-us" element={<ContactUs />} />
         </Route>

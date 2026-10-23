@@ -19,7 +19,7 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      await login(form.email, form.password);
+      await login(form.email.trim(), form.password);
       notify("Logged in successfully");
       navigate("/dashboard");
     } catch (err) {
@@ -32,7 +32,7 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-900 to-brand-600 px-4">
       <div className="w-full max-w-md bg-white rounded-xl shadow-2xl p-8">
-        <h1 className="text-3xl font-bold text-brand-900 text-center mb-1">ProAnalyser</h1>
+        <h1 className="text-3xl font-bold text-brand-900 text-center mb-1">iZone Analyzer</h1>
         <p className="text-sm text-gray-500 text-center mb-8">Sign in to your workspace</p>
 
         {error && (
@@ -92,6 +92,47 @@ export default function Login() {
             {loading ? "Signing in..." : "Login"}
           </button>
         </form>
+
+        <div className="mt-6 pt-5 border-t border-gray-100">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 text-center">
+            Demo Credentials (Click to fill)
+          </p>
+          <div className="space-y-1.5 text-xs">
+            <button
+              type="button"
+              onClick={() => setForm({ email: "monika@izoneanalyzer.in", password: "Admin@123" })}
+              className="w-full flex items-center justify-between p-2 rounded-lg bg-gray-50 hover:bg-gray-100 border border-gray-200 transition text-left cursor-pointer"
+            >
+              <div>
+                <span className="font-semibold text-brand-900">Admin: </span>
+                <span className="text-gray-600">monika@izoneanalyzer.in</span>
+              </div>
+              <span className="text-[11px] font-medium text-brand-600 bg-brand-50 px-2 py-0.5 rounded">Auto-fill</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setForm({ email: "ravi.manager@izoneanalyzer.in", password: "Manager@123" })}
+              className="w-full flex items-center justify-between p-2 rounded-lg bg-gray-50 hover:bg-gray-100 border border-gray-200 transition text-left cursor-pointer"
+            >
+              <div>
+                <span className="font-semibold text-brand-900">Manager: </span>
+                <span className="text-gray-600">ravi.manager@izoneanalyzer.in</span>
+              </div>
+              <span className="text-[11px] font-medium text-brand-600 bg-brand-50 px-2 py-0.5 rounded">Auto-fill</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setForm({ email: "ananya.member@izoneanalyzer.in", password: "Member@123" })}
+              className="w-full flex items-center justify-between p-2 rounded-lg bg-gray-50 hover:bg-gray-100 border border-gray-200 transition text-left cursor-pointer"
+            >
+              <div>
+                <span className="font-semibold text-brand-900">Member: </span>
+                <span className="text-gray-600">ananya.member@izoneanalyzer.in</span>
+              </div>
+              <span className="text-[11px] font-medium text-brand-600 bg-brand-50 px-2 py-0.5 rounded">Auto-fill</span>
+            </button>
+          </div>
+        </div>
 
         <p className="text-center text-sm text-gray-500 mt-6">
           Don&apos;t have an account?{" "}

@@ -50,14 +50,15 @@ def add_user(
     current_user: User = Depends(require_roles(UserRole.ADMIN, UserRole.MANAGER)),
     db: Session = Depends(get_db),
 ):
-    existing = db.query(User).filter(User.email == payload.email).first()
+    email_clean = payload.email.strip().lower()
+    existing = db.query(User).filter(func.lower(User.email) == email_clean).first()
     if existing:
         raise HTTPException(status_code=409, detail="A user with this email already exists")
 
     user = User(
-        name=payload.name,
-        email=payload.email,
-        phone=payload.phone,
+        name=payload.name.strip(),
+        email=email_clean,
+        phone=payload.phone.strip() if payload.phone else None,
         hashed_password=hash_password(payload.password),
         role=payload.role,
         added_by_id=current_user.org_id,

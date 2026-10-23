@@ -1,0 +1,668 @@
+{
+  "P1": [
+    [
+      [
+        "1. Business & Filing Overview",
+        null,
+        null,
+        null
+      ],
+      [
+        "GSTIN",
+        "33CQDPD3889F1ZW",
+        "Financial Year",
+        "2025-26"
+      ],
+      [
+        "Legal Name",
+        "SYEDABDUL FAZITH DHASLIMA\nNASRIN",
+        "Tax Period",
+        "February"
+      ],
+      [
+        "Trade Name",
+        "AKA STEEL & ROOFING",
+        "ARN",
+        "AB330226924150P"
+      ],
+      [
+        "Signatory",
+        "MOHAMED SAROOK\nSYEDABDULFAZITH",
+        "Filing Date / ARN Date",
+        "20/03/2026"
+      ]
+    ],
+    [
+      [
+        "2. Key Financial Indicators (Amount in INR)",
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        "Taxable Turnover",
+        "Output GST",
+        "Net ITC Available",
+        "Net Tax Liability",
+        "ITC Utilized",
+        "Cash Tax Paid"
+      ],
+      [
+        "18.27 L",
+        "3.29 L",
+        "81.9 K",
+        "3.29 L",
+        "9",
+        "3.29 L"
+      ],
+      [
+        "1,826,807.52",
+        "328,825.34",
+        "81,941.55",
+        "328,826.00",
+        "9.00",
+        "328,817.00"
+      ]
+    ],
+    [
+      [
+        "Consistency Score",
+        "Settlement Variance",
+        "RCM Inward Exposure",
+        "ITC Reversals"
+      ],
+      [
+        "100 / 100",
+        "0.00",
+        "Rs. 0.00",
+        "225.00"
+      ],
+      [
+        "Analytical: Grade A+",
+        "Reconciliation: BALANCED",
+        "No RCM Reported",
+        "Rule 38/42/43 Reversal"
+      ]
+    ]
+  ],
+  "P2": [
+    [
+      [
+        "Table 3.1 \u2014 Details of Outward Supplies & Reverse Charge (Amount in INR)",
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        "Nature of Supplies",
+        "Taxable Value",
+        "IGST",
+        "CGST",
+        "SGST/UT",
+        "Cess"
+      ],
+      [
+        "(a) Outward taxable supplies (other than\nzero/nil/exempt)",
+        "1,826,807.52",
+        "0.00",
+        "164,412.67",
+        "164,412.67",
+        "0.00"
+      ],
+      [
+        "(b) Outward taxable supplies (zero rated)",
+        "0.00",
+        "0.00",
+        "-",
+        "-",
+        "0.00"
+      ],
+      [
+        "(c) Other outward supplies (nil rated, exempted)",
+        "4,132,480.00",
+        "-",
+        "-",
+        "-",
+        "-"
+      ],
+      [
+        "(d) Inward supplies (liable to reverse charge)",
+        "0.00",
+        "0.00",
+        "0.00",
+        "0.00",
+        "0.00"
+      ],
+      [
+        "(e) Non-GST outward supplies",
+        "0.00",
+        "-",
+        "-",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      [
+        "Table 3.1.1 & Table 3.2 \u2014 E-Commerce u/s 9(5) & Inter-State Supplies (Amount in INR)",
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        "Section / Description",
+        "Taxable Value",
+        "Integrated Tax",
+        "Central Tax",
+        "State/UT Tax"
+      ],
+      [
+        "3.1.1(i) ECO pays tax u/s 9(5)",
+        "0.00",
+        "0.00",
+        "0.00",
+        "0.00"
+      ],
+      [
+        "3.1.1(ii) Supplies through ECO u/s 9(5)",
+        "0.00",
+        "-",
+        "-",
+        "-"
+      ],
+      [
+        "3.2 Supplies to Unregistered Persons",
+        "0.00",
+        "0.00",
+        "-",
+        "-"
+      ],
+      [
+        "3.2 Supplies to Composition Taxable Persons",
+        "0.00",
+        "0.00",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      [
+        "Output GST vs Reverse Charge Liability (RCM)"
+      ],
+      [
+        "Reverse Charge Liability (RCM): Rs. 0.00 \u2014 No inward reverse-charge liability reported for this period."
+      ]
+    ]
+  ],
+  "P3": [
+    [
+      [
+        "Table 4 \u2014 Eligible Input Tax Credit (ITC) Breakdown (Amount in INR)",
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        "ITC Category / Rule Reference",
+        "IGST",
+        "CGST",
+        "SGST/UT",
+        "Cess"
+      ],
+      [
+        "A. ITC Available (whether in full or part)",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "(1) Import of goods",
+        "0.00",
+        "0.00",
+        "0.00",
+        "0.00"
+      ],
+      [
+        "(2) Import of services",
+        "0.00",
+        "0.00",
+        "0.00",
+        "0.00"
+      ],
+      [
+        "(3) Inward supplies liable to reverse charge",
+        "0.00",
+        "0.00",
+        "0.00",
+        "0.00"
+      ],
+      [
+        "(4) Inward supplies from ISD",
+        "0.00",
+        "0.00",
+        "0.00",
+        "0.00"
+      ],
+      [
+        "(5) All other ITC",
+        "8.85",
+        "41,078.85",
+        "41,078.85",
+        "0.00"
+      ],
+      [
+        "B. ITC Reversed",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "(1) Rule 38, 42 & 43 and section 17(5)",
+        "0.00",
+        "112.50",
+        "112.50",
+        "0.00"
+      ],
+      [
+        "(2) Others",
+        "0.00",
+        "0.00",
+        "0.00",
+        "0.00"
+      ],
+      [
+        "C. Net ITC Available (A - B) [Reported]",
+        "8.85",
+        "40,966.35",
+        "40,966.35",
+        "0.00"
+      ],
+      [
+        "D. Other Details",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "(1) ITC reclaimed reversed earlier",
+        "0.00",
+        "0.00",
+        "0.00",
+        "0.00"
+      ],
+      [
+        "(2) Ineligible ITC u/s 16(4) / PoS rules",
+        "0.00",
+        "0.00",
+        "0.00",
+        "0.00"
+      ]
+    ],
+    [
+      [
+        "Calculated Net ITC (A - B)",
+        "81,941.55",
+        "Reported Net ITC",
+        "81,941.55"
+      ],
+      [
+        "Arithmetic Status",
+        "MATCH / Settlement\nbalanced; variance 0.00",
+        "Variance",
+        "0.00"
+      ]
+    ],
+    [
+      [
+        "ITC Analysis \u2014 Availability vs Utilization & Composition",
+        null,
+        null,
+        null
+      ],
+      [
+        "ITC Metric",
+        "Amount (INR)",
+        "Tax Head",
+        "Net ITC (INR)"
+      ],
+      [
+        "Net ITC Available",
+        "81,941.55",
+        "IGST",
+        "8.85"
+      ],
+      [
+        "ITC Actually Utilized",
+        "9.00",
+        "CGST",
+        "40,966.35"
+      ],
+      [
+        "Utilization Rate: 0.0%",
+        "Remaining: Rs. 81,932.55",
+        "SGST/UTGST",
+        "40,966.35"
+      ]
+    ]
+  ],
+  "P4": [
+    [
+      [
+        "Table 6.1 \u2014 Payment of Tax (ITC Offset vs Cash Settlement) (Amount in INR)",
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        "Tax Head",
+        "Tax Payable",
+        "Net Payable",
+        "Paid via ITC",
+        "Paid in Cash",
+        "Interest Cash",
+        "Late Fee Cash"
+      ],
+      [
+        "(A) Other than Reverse\nCharge",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "Integrated tax",
+        "0.00",
+        "0.00",
+        "0.00",
+        "0.00",
+        "0.00",
+        "-"
+      ],
+      [
+        "Central tax",
+        "164,413.00",
+        "164,413.00",
+        "9.00",
+        "164,404.00",
+        "0.00",
+        "0.00"
+      ],
+      [
+        "State/UT tax",
+        "164,413.00",
+        "164,413.00",
+        "0.00",
+        "164,413.00",
+        "0.00",
+        "0.00"
+      ],
+      [
+        "Cess",
+        "0.00",
+        "0.00",
+        "0.00",
+        "0.00",
+        "0.00",
+        "-"
+      ],
+      [
+        "(B) Reverse Charge &\nSection 9(5)",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      [
+        "Integrated tax",
+        "0.00",
+        "0.00",
+        "0.00",
+        "0.00",
+        "-",
+        "-"
+      ],
+      [
+        "Central tax",
+        "0.00",
+        "0.00",
+        "0.00",
+        "0.00",
+        "-",
+        "-"
+      ],
+      [
+        "State/UT tax",
+        "0.00",
+        "0.00",
+        "0.00",
+        "0.00",
+        "-",
+        "-"
+      ],
+      [
+        "Cess",
+        "0.00",
+        "0.00",
+        "0.00",
+        "0.00",
+        "-",
+        "-"
+      ]
+    ],
+    [
+      [
+        "Tax Liability by Tax Head \u2014 Other than RCM",
+        null,
+        null,
+        null,
+        null
+      ],
+      [
+        "Tax Head",
+        "Tax Payable",
+        "Paid via ITC",
+        "Paid in Cash",
+        "Status / Analytical Note"
+      ],
+      [
+        "IGST",
+        "0.00",
+        "0.00",
+        "0.00",
+        "No IGST liability reported"
+      ],
+      [
+        "CGST",
+        "164,413.00",
+        "9.00",
+        "164,404.00",
+        "Settled in full"
+      ],
+      [
+        "SGST/UTGST",
+        "164,413.00",
+        "0.00",
+        "164,413.00",
+        "Settled in full"
+      ],
+      [
+        "Cess",
+        "0.00",
+        "0.00",
+        "0.00",
+        "No Cess liability reported"
+      ]
+    ],
+    [
+      [
+        "Tax Payment Settlement Synthesis",
+        null
+      ],
+      [
+        "Total Net Tax Liability",
+        "328,826.00"
+      ],
+      [
+        "Total Settled Through ITC",
+        "9.00"
+      ],
+      [
+        "Total Settled Through Cash",
+        "328,817.00"
+      ],
+      [
+        "Total Settled (ITC + Cash)",
+        "328,826.00"
+      ],
+      [
+        "Settlement Variance",
+        "0.00 (PASS)"
+      ]
+    ]
+  ],
+  "P5": [
+    [
+      [
+        "Analytical Consistency & Risk Checks",
+        null,
+        null
+      ],
+      [
+        "Check",
+        "Status",
+        "Observation / Value"
+      ],
+      [
+        "Return Information Check",
+        "PASS",
+        "33CQDPD3889F1ZW | FY 2025-26 | February"
+      ],
+      [
+        "Tax Liability Consistency Check",
+        "PASS",
+        "Output GST Rs. 328,825.34; Total Tax Liability including RCM Rs. 328,826.00"
+      ],
+      [
+        "Tax Payment Settlement Check",
+        "PASS",
+        "Settlement balanced; variance Rs. 0.00"
+      ],
+      [
+        "ITC Consistency Check",
+        "PASS",
+        "100% Consistent"
+      ],
+      [
+        "RCM Exposure Check",
+        "PASS",
+        "No RCM Liability"
+      ],
+      [
+        "Interest & Late Fee Check",
+        "PASS",
+        "Rs. 0.00 (Nil)"
+      ],
+      [
+        "ITC Reversal (Rule 38/42/43 / 17(5))",
+        "ATTENTION",
+        "Rs. 225.00"
+      ]
+    ],
+    [
+      [
+        "Risk Engine Alerts & Diagnostic Findings",
+        null
+      ],
+      [
+        "Severity",
+        "Diagnostic Finding"
+      ],
+      [
+        "MEDIUM",
+        "ITC Reversal Recorded \u2014 ITC reversal of Rs. 225.00 was reported under Table 4(B). Verify the applicable reversal details and\nsupporting records."
+      ],
+      [
+        "INFO",
+        "Exempt / Non-GST Supplies Declared \u2014 Exempt/nil-rated turnover of Rs. 4,132,480.00 and non-GST turnover of Rs. 0.00\nreported."
+      ]
+    ],
+    [
+      [
+        "Unified Exception Register",
+        null,
+        null,
+        null
+      ],
+      [
+        "Severity",
+        "Category",
+        "Exception Title / Source",
+        "Status"
+      ],
+      [
+        "INFO",
+        "RECONCILIATION",
+        "CGST Liability Reconciliation \u2014 Rounding Variance \u2014 Table 3.1(a) Central Tax vs Table 6.1(A)\nCentral Tax Payable (Diff: Rs. 0.33)",
+        "PASS"
+      ],
+      [
+        "INFO",
+        "RECONCILIATION",
+        "SGST/UTGST Liability Reconciliation \u2014 Rounding Variance \u2014 Table 3.1(a) State/UT Tax vs\nTable 6.1(A) State/UT Tax Payable (Diff: Rs. 0.33)",
+        "PASS"
+      ],
+      [
+        "INFO",
+        "RECONCILIATION",
+        "Total Outward Output GST Reconciliation \u2014 Rounding Variance \u2014 Table 3.1(a) Output GST\nTotal vs Table 6.1(A) Total Tax Payable (Diff: Rs. 0.66)",
+        "PASS"
+      ],
+      [
+        "INFO",
+        "COMPLIANCE",
+        "ITC Reversal Reported \u2014 Table 4(B) (Diff: Rs. 225.00)",
+        "REVIEW"
+      ]
+    ]
+  ],
+  "P6": [
+    [
+      [
+        "Authorized Signatory & Return Verification",
+        null
+      ],
+      [
+        "Signatory Name",
+        "MOHAMED SAROOK SYEDABDULFAZITH"
+      ],
+      [
+        "Capacity / Designation",
+        "PROPRIETOR"
+      ],
+      [
+        "Verification Date",
+        "20/03/2026"
+      ],
+      [
+        "Filing Status",
+        "Filed & Submitted (Acknowledgement ARN Documented)"
+      ]
+    ]
+  ]
+}

@@ -18,7 +18,12 @@ export default function Register() {
     setError("");
     setLoading(true);
     try {
-      await register(form);
+      await register({
+        name: form.name.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim(),
+        password: form.password,
+      });
       notify("Account created successfully");
       navigate("/dashboard");
     } catch (err) {
@@ -31,7 +36,7 @@ export default function Register() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-900 to-brand-600 px-4">
       <div className="w-full max-w-md bg-white rounded-xl shadow-2xl p-8">
-        <h1 className="text-3xl font-bold text-brand-900 text-center mb-1">ProAnalyser</h1>
+        <h1 className="text-3xl font-bold text-brand-900 text-center mb-1">iZone Analyzer</h1>
         <p className="text-sm text-gray-500 text-center mb-8">Create your workspace (Admin account)</p>
 
         {error && (

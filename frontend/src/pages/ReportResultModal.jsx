@@ -25,7 +25,17 @@ export default function ReportResultModal({ report, onClose }) {
       link.remove();
       notify(`${format.toUpperCase()} downloaded successfully`);
     } catch (err) {
-      notify("Could not download report", "error");
+      if (err.response && err.response.data instanceof Blob) {
+        const text = await err.response.data.text();
+        try {
+          const json = JSON.parse(text);
+          notify(json.detail || "Could not download report", "error");
+        } catch (e) {
+          notify("Could not download report", "error");
+        }
+      } else {
+        notify("Could not download report", "error");
+      }
     } finally {
       setDownloading("");
     }

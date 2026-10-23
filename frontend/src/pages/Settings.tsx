@@ -53,7 +53,7 @@ const DEFAULT_SETTINGS: SettingsState = {
   orgName: 'Apex Capital & Credit NBFC',
   adminEmail: 'admin@apexcapital.in',
   financialYear: '2024-2025',
-  currency: 'INR (₹)',
+  currency: 'INR (Rs.)',
   dateFormat: 'DD/MM/YYYY',
 
   minDscr: 1.25,
@@ -537,7 +537,7 @@ export default function Settings() {
                       onChange={e => setSettings({ ...settings, currency: e.target.value })}
                       className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                     >
-                      <option value="INR (₹)">INR (₹) - Indian Rupee (Lakhs & Crores)</option>
+                      <option value="INR (Rs.)">INR (Rs.) - Indian Rupee (Lakhs & Crores)</option>
                       <option value="USD ($)">USD ($) - US Dollar</option>
                       <option value="EUR (€)">EUR (€) - Euro</option>
                       <option value="AED (د.إ)">AED (د.إ) - UAE Dirham</option>

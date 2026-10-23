@@ -6,7 +6,8 @@ Run with:  python seed_db.py
 """
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func
+import sqlalchemy as sa
+from sqlalchemy import func, inspect
 from app.core.security import hash_password
 from app.database import Base, engine, SessionLocal
 from app.models.billing import Subscription, Transaction, PlanType, SubscriptionStatus, TransactionType
@@ -18,6 +19,24 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+def ensure_schema():
+    Base.metadata.create_all(bind=engine)
+    insp = inspect(engine)
+    if "report_files" in insp.get_table_names():
+        existing_cols = {c["name"] for c in insp.get_columns("report_files")}
+        with engine.begin() as conn:
+            if "bank_name" not in existing_cols:
+                conn.execute(sa.text("ALTER TABLE report_files ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100)"))
+            if "account_holder" not in existing_cols:
+                conn.execute(sa.text("ALTER TABLE report_files ADD COLUMN IF NOT EXISTS account_holder VARCHAR(255)"))
+            if "masked_account_no" not in existing_cols:
+                conn.execute(sa.text("ALTER TABLE report_files ADD COLUMN IF NOT EXISTS masked_account_no VARCHAR(50)"))
+            if "owner_restricted" not in existing_cols:
+                conn.execute(sa.text("ALTER TABLE report_files ADD COLUMN IF NOT EXISTS owner_restricted BOOLEAN DEFAULT FALSE"))
+            if "authenticity_reasons" not in existing_cols:
+                conn.execute(sa.text("ALTER TABLE report_files ADD COLUMN IF NOT EXISTS authenticity_reasons JSON"))
+
+
 def get_available_reference_id(db_session, preferred_ref: str) -> str:
     if not db_session.query(Report).filter(Report.reference_id == preferred_ref).first():
         return preferred_ref
@@ -26,7 +45,7 @@ def get_available_reference_id(db_session, preferred_ref: str) -> str:
 
 
 def seed_database():
-    Base.metadata.create_all(bind=engine)
+    ensure_schema()
     db = SessionLocal()
 
     try:

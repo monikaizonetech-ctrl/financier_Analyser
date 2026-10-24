@@ -1611,10 +1611,16 @@ def parse_document_transactions(
     falling back to spatial line extraction for borderless pages.
     Emits canonical transaction dictionaries.
     """
-    # --- Indian Bank: use dedicated stream parser instead of spatial parser ---
+    # --- Indian Bank: use dedicated stream parser ONLY if text-stream layout matches ---
     bank = (meta or {}).get("bank_name", "").upper()
     if bank == "INDIAN BANK":
-        return parse_indian_bank_text_transactions(doc, file_name, meta)
+        has_ib_stream = any(
+            _IB_DATE_START.match(line.text.strip())
+            for page in doc.pages
+            for line in page.transaction_lines
+        )
+        if has_ib_stream:
+            return parse_indian_bank_text_transactions(doc, file_name, meta)
 
     all_txns: list[CanonicalTransaction] = []
     discovered_cols: list[ColumnDef] | None = None

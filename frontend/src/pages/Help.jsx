@@ -43,9 +43,9 @@ export default function Help() {
         ))}
       </div>
 
-      <div className="card p-6 flex items-center justify-between">
-        <p className="text-sm text-gray-600">Still need help? Our support team is one click away.</p>
-        <button className="btn-primary" onClick={() => setShowContact(true)}>
+      <div className="card p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <p className="text-xs sm:text-sm text-gray-600">Still need help? Our support team is one click away.</p>
+        <button className="btn-primary text-xs sm:text-sm py-2 px-4 whitespace-nowrap self-start sm:self-auto" onClick={() => setShowContact(true)}>
           Contact Support
         </button>
       </div>

@@ -8,13 +8,25 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, 
 from fastapi.responses import StreamingResponse
 from sqlalchemy import or_
 import sqlalchemy.exc
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
+import uuid
 
 from app.core.config import settings
 from app.database import get_db
 from app.dependencies.auth import get_current_user
 from app.models.billing import Subscription
-from app.models.report import Report, ReportFile, ReportType, ReportStatus, FileStatus, FileAuthenticity
+from app.models.report import (
+    Report,
+    ReportFile,
+    ReportType,
+    ReportStatus,
+    FileStatus,
+    FileAuthenticity,
+    ReportReferenceCounter,
+    format_reference_id,
+)
 from app.models.user import User
 from app.schemas.report import (
     ReportCreate,
@@ -37,6 +49,67 @@ from io import BytesIO
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
 
+def _normalize_report_type(report_type: ReportType | str) -> ReportType:
+    if isinstance(report_type, ReportType):
+        return report_type
+    val = str(report_type).strip().upper()
+    if val == "BANK":
+        return ReportType.BSA
+    if val in [e.value for e in ReportType]:
+        return ReportType(val)
+    return ReportType.BSA
+
+
+def allocate_next_reference_id(db: Session, owner_id: str, report_type: ReportType | str) -> str:
+    """
+    Atomically allocates the next sequential reference ID for (owner_id, report_type)
+    within the current transaction using PostgreSQL's ON CONFLICT DO UPDATE.
+    Guarantees no race conditions or duplicates under concurrent creation.
+    """
+    rtype = _normalize_report_type(report_type)
+    now = datetime.utcnow()
+    stmt = (
+        pg_insert(ReportReferenceCounter)
+        .values(
+            id=str(uuid.uuid4()),
+            owner_id=owner_id,
+            report_type=rtype,
+            last_number=1,
+            created_at=now,
+            updated_at=now,
+        )
+        .on_conflict_do_update(
+            index_elements=["owner_id", "report_type"],
+            set_={
+                "last_number": ReportReferenceCounter.last_number + 1,
+                "updated_at": now,
+            },
+        )
+        .returning(ReportReferenceCounter.last_number)
+    )
+    result = db.execute(stmt)
+    next_num = result.scalar_one()
+    return format_reference_id(rtype, next_num)
+
+
+def get_next_reference_id_preview(db: Session, owner_id: str, report_type: ReportType | str) -> str:
+    """
+    Read-only informational preview of the next reference ID for (owner_id, report_type).
+    Does NOT increment or lock the counter table.
+    """
+    rtype = _normalize_report_type(report_type)
+    counter = (
+        db.query(ReportReferenceCounter)
+        .filter(
+            ReportReferenceCounter.owner_id == owner_id,
+            ReportReferenceCounter.report_type == rtype,
+        )
+        .first()
+    )
+    next_num = (counter.last_number if counter else 0) + 1
+    return format_reference_id(rtype, next_num)
+
+
 def _org_user_ids(db: Session, current_user: User) -> list[str]:
     """All user ids belonging to the same team/org as current_user."""
     org_owner_id = current_user.org_id
@@ -48,23 +121,17 @@ def _org_user_ids(db: Session, current_user: User) -> list[str]:
 
 @router.post("", response_model=ReportOut, status_code=status.HTTP_201_CREATED)
 def create_report(payload: ReportCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    report = Report(
-        name=payload.name,
-        report_type=payload.report_type,
-        owner_id=current_user.id,
-    )
-    if payload.reference_id:
-        report.reference_id = payload.reference_id
-    else:
-        reports = db.query(Report.reference_id).all()
-        max_id = 0
-        for r in reports:
-            if r[0] and r[0].isdigit():
-                max_id = max(max_id, int(r[0]))
-        report.reference_id = str(max_id + 1)
-
-    db.add(report)
     try:
+        # Generate reference ID atomically on backend; never trust frontend input
+        ref_id = allocate_next_reference_id(db, current_user.id, payload.report_type)
+
+        report = Report(
+            name=payload.name,
+            report_type=payload.report_type,
+            owner_id=current_user.id,
+            reference_id=ref_id,
+        )
+        db.add(report)
         db.commit()
     except sqlalchemy.exc.IntegrityError:
         db.rollback()
@@ -72,23 +139,33 @@ def create_report(payload: ReportCreate, current_user: User = Depends(get_curren
             status_code=400,
             detail="A report with this Reference ID already exists."
         )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not create report: {str(e)}"
+        )
     db.refresh(report)
     return report
 
 
 @router.get("/next-id")
-def get_next_report_id(db: Session = Depends(get_db)):
-    reports = db.query(Report.reference_id).all()
-    max_id = 0
-    for r in reports:
-        if r[0] and r[0].isdigit():
-            max_id = max(max_id, int(r[0]))
-    return {"next_id": str(max_id + 1)}
+def get_next_report_id(
+    report_type: str = Query(default="BSA", description="Report type (BSA, GST, ITR)"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    rtype = _normalize_report_type(report_type)
+    next_id = get_next_reference_id_preview(db, current_user.id, rtype)
+    return {"next_id": next_id, "report_type": rtype.value}
+
+
 
 
 @router.get("", response_model=PaginatedReports)
 def list_my_reports(
-    search: str | None = Query(default=None, description="Search by report name"),
+    search: str | None = Query(default=None, description="Search by report name or reference id"),
+    report_type: str | None = Query(default=None, description="Filter by report type (BSA, GST, ITR)"),
     sort_by: str = Query(default="created_at"),
     page: int = 1,
     page_size: int = 10,
@@ -97,7 +174,16 @@ def list_my_reports(
 ):
     query = db.query(Report).filter(Report.owner_id == current_user.id)
     if search:
-        query = query.filter(Report.name.ilike(f"%{search}%"))
+        search_pattern = f"%{search.strip()}%"
+        query = query.filter(
+            or_(
+                Report.name.ilike(search_pattern),
+                Report.reference_id.ilike(search_pattern),
+            )
+        )
+    if report_type and report_type.upper() != "ALL":
+        rtype = _normalize_report_type(report_type)
+        query = query.filter(Report.report_type == rtype)
 
     sort_col = getattr(Report, sort_by, Report.created_at)
     query = query.order_by(sort_col.desc())
@@ -106,10 +192,12 @@ def list_my_reports(
     return PaginatedReports(items=items, total=total, page=page, page_size=page_size)
 
 
+
 @router.get("/team", response_model=PaginatedTeamReports)
 def list_team_reports(
     search_email: str | None = None,
     search_name: str | None = None,
+    report_type: str | None = Query(default=None, description="Filter by report type (BSA, GST, ITR)"),
     page: int = 1,
     page_size: int = 10,
     current_user: User = Depends(get_current_user),
@@ -119,11 +207,21 @@ def list_team_reports(
     query = db.query(Report, User).join(User, Report.owner_id == User.id).filter(Report.owner_id.in_(org_ids))
 
     if search_email:
-        query = query.filter(User.email.ilike(f"%{search_email}%"))
+        query = query.filter(User.email.ilike(f"%{search_email.strip()}%"))
     if search_name:
-        query = query.filter(Report.name.ilike(f"%{search_name}%"))
+        pattern = f"%{search_name.strip()}%"
+        query = query.filter(
+            or_(
+                Report.name.ilike(pattern),
+                Report.reference_id.ilike(pattern),
+            )
+        )
+    if report_type and report_type.upper() != "ALL":
+        rtype = _normalize_report_type(report_type)
+        query = query.filter(Report.report_type == rtype)
 
     query = query.order_by(Report.created_at.desc())
+
 
     total = query.count()
     page = max(page, 1)
@@ -383,9 +481,22 @@ def delete_report_file(
         raise HTTPException(status_code=404, detail="File not found")
     if os.path.exists(report_file.stored_path):
         os.remove(report_file.stored_path)
+    removed_name = report_file.file_name
     db.delete(report_file)
+
+    if report.result_summary and isinstance(report.result_summary, dict):
+        summary = dict(report.result_summary)
+        details = summary.get("details", [])
+        if details:
+            summary["details"] = [d for d in details if d.get("file_name") != removed_name]
+            summary["files_analysed"] = len(summary["details"])
+            report.result_summary = summary
+            flag_modified(report, "result_summary")
+
     db.commit()
     return None
+
+
 
 
 @router.post("/{report_id}/analyse", response_model=ReportDetailOut)
@@ -399,7 +510,15 @@ def analyse_report(
     if not report.files:
         raise HTTPException(status_code=400, detail="Upload at least one file before analysing")
 
-    locked_files = [f for f in report.files if f.file_status == FileStatus.PASSWORD_REQUIRED]
+    target_file_id = payload.get("file_id") if payload and isinstance(payload, dict) else None
+    if target_file_id:
+        target_files = [f for f in report.files if f.id == target_file_id]
+        if not target_files:
+            raise HTTPException(status_code=404, detail="Selected file not found in report")
+    else:
+        target_files = report.files
+
+    locked_files = [f for f in target_files if f.file_status == FileStatus.PASSWORD_REQUIRED]
     if locked_files:
         raise HTTPException(status_code=400, detail="Please unlock all password-protected files before starting analysis.")
 
@@ -408,7 +527,7 @@ def analyse_report(
         raise HTTPException(status_code=402, detail="No credits left. Please upgrade your plan.")
 
     report.status = ReportStatus.PROCESSING
-    for f in report.files:
+    for f in target_files:
         f.file_status = FileStatus.PROCESSING
     db.commit()
 
@@ -417,7 +536,7 @@ def analyse_report(
 
     update_progress(0, 1, "Initializing analysis...")
 
-    file_paths = [f.stored_path for f in report.files]
+    file_paths = [f.stored_path for f in target_files]
 
     try:
         summary = run_analysis(
@@ -428,7 +547,7 @@ def analyse_report(
         )
 
         details_map = {d.get("file_name"): d for d in summary.get("details", [])}
-        for f in report.files:
+        for f in target_files:
             detail = details_map.get(f.file_name, {})
             txns = detail.get("transactions", [])
             is_stats = bool(detail.get("is_filing_statistics"))
@@ -456,9 +575,32 @@ def analyse_report(
                 f.authenticity = FileAuthenticity.UNVERIFIABLE
                 f.authenticity_reasons = [detail.get("note") or "No transactions extracted"]
 
-        report.result_summary = summary
+        # Merge new/updated file details into existing report result_summary
+        existing_summary = dict(report.result_summary or {})
+        existing_details = existing_summary.get("details", [])
+        
+        # Build merged details list keyed by file_name so each file stays completely separate
+        merged_details_dict = {d.get("file_name"): d for d in existing_details if d.get("file_name")}
+        for d in summary.get("details", []):
+            fname = d.get("file_name")
+            if fname:
+                merged_details_dict[fname] = d
+        
+        # Keep only details for files currently in the report
+        current_names = {f.file_name for f in report.files}
+        final_details = [d for fname, d in merged_details_dict.items() if fname in current_names]
+
+        # Use new summary shell but with merged isolated file details
+        final_summary = dict(summary)
+        final_summary["details"] = final_details
+        final_summary["files_analysed"] = len(final_details)
+        final_summary["reference_id"] = report.reference_id
+
+        report.result_summary = final_summary
+        flag_modified(report, "result_summary")
         report.status = ReportStatus.READY_TO_USE
         report.analysed_at = datetime.utcnow()
+        final_summary["analysed_at"] = report.analysed_at.isoformat()
 
         if subscription:
             subscription.credits_used = min(subscription.credits_used + 0.5, subscription.credits_total)
@@ -469,10 +611,11 @@ def analyse_report(
         return report
     except Exception as e:
         report.status = ReportStatus.FAILED
-        for f in report.files:
+        for f in target_files:
             if f.file_status == FileStatus.PROCESSING:
                 f.file_status = FileStatus.FAILED
         db.commit()
+
         set_report_progress(report.id, 0, 1, f"Analysis failed: {str(e)}", stage="error")
         raise
 
@@ -503,12 +646,17 @@ def download_report(
     if report.status != ReportStatus.READY_TO_USE or not report.result_summary:
         raise HTTPException(status_code=400, detail="Report has not been analysed yet")
 
+    summary_payload = dict(report.result_summary or {})
+    summary_payload["reference_id"] = report.reference_id or summary_payload.get("reference_id")
+    summary_payload["analysed_at"] = report.analysed_at.isoformat() if report.analysed_at else summary_payload.get("analysed_at")
+    summary_payload["created_at"] = report.created_at.isoformat() if report.created_at else summary_payload.get("created_at")
+
     if file_format == "xlsx":
-        content = build_excel_report(report.name, report.report_type.value, report.result_summary)
+        content = build_excel_report(report.name, report.report_type.value, summary_payload)
         media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         filename = f"{report.name}_{datetime.utcnow().strftime('%d_%b_%Y')}.xlsx"
     else:
-        content = build_pdf_report(report.name, report.report_type.value, report.result_summary)
+        content = build_pdf_report(report.name, report.report_type.value, summary_payload)
         media_type = "application/pdf"
         filename = f"{report.name}_{datetime.utcnow().strftime('%d_%b_%Y')}.pdf"
 

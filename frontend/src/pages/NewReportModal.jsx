@@ -17,13 +17,32 @@ export default function NewReportModal({ onClose, onCreated, totalReports }) {
   const [form, setForm] = useState({ name: "", report_type: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [nextId, setNextId] = useState("Loading...");
+  const [nextId, setNextId] = useState("Select a report type");
 
   useEffect(() => {
-    api.get("/reports/next-id")
-      .then(res => setNextId(res.data.next_id))
-      .catch(() => setNextId("Error fetching ID"));
-  }, []);
+    if (!form.report_type) {
+      setNextId("Select a report type");
+      return;
+    }
+    let isCancelled = false;
+    setNextId("Loading...");
+    api.get("/reports/next-id", { params: { report_type: form.report_type } })
+      .then(res => {
+        if (!isCancelled) {
+          setNextId(res.data.next_id);
+        }
+      })
+      .catch(() => {
+        if (!isCancelled) {
+          setNextId("Auto-generated on create");
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [form.report_type]);
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -58,28 +77,6 @@ export default function NewReportModal({ onClose, onCreated, totalReports }) {
       )}
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="block text-sm font-semibold text-gray-800 mb-1">Reference ID (Auto-Generated)</label>
-          <input
-            className="input-field bg-gray-50 cursor-not-allowed text-gray-500 font-medium"
-            value={nextId}
-            disabled
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-semibold text-gray-800 mb-1">
-            Report Name <span className="text-red-500">*</span>
-          </label>
-          <input
-            required
-            className="input-field"
-            placeholder="Enter Report Name"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
-        </div>
-
-        <div>
           <label className="block text-sm font-semibold text-gray-800 mb-1">
             Select Report Type <span className="text-red-500">*</span>
           </label>
@@ -98,6 +95,30 @@ export default function NewReportModal({ onClose, onCreated, totalReports }) {
           </select>
 
         </div>
+
+
+        <div>
+          <label className="block text-sm font-semibold text-gray-800 mb-1">
+            Reporter Name <span className="text-red-500">*</span>
+          </label>
+          <input
+            required
+            className="input-field"
+            placeholder="eg:(Ram GST )"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-800 mb-1">Reference ID (Auto-Generated)</label>
+          <input
+            className="input-field bg-gray-50 cursor-not-allowed text-gray-500 font-medium"
+            value={nextId}
+            disabled
+          />
+        </div>
+
+
 
         <div className="flex justify-end gap-3 pt-2">
           <button type="button" onClick={onClose} className="btn-secondary">

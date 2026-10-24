@@ -30,9 +30,9 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-900 to-brand-600 px-4">
-      <div className="w-full max-w-md bg-white rounded-xl shadow-2xl p-8">
-        <h1 className="text-3xl font-bold text-brand-900 text-center mb-1">iZone Analyzer</h1>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-900 to-brand-600 p-4">
+      <div className="w-full max-w-md bg-white rounded-xl shadow-2xl p-5 sm:p-8 my-4">
+        <h1 className="text-2xl sm:text-3xl font-bold text-brand-900 text-center mb-1">iZone Analyzer</h1>
         <p className="text-sm text-gray-500 text-center mb-8">Sign in to your workspace</p>
 
         {error && (

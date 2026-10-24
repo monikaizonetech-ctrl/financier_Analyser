@@ -73,11 +73,18 @@ def ensure_schema():
                 pass
 
 
-def get_available_reference_id(db_session, preferred_ref: str) -> str:
-    if not db_session.query(Report).filter(Report.reference_id == preferred_ref).first():
-        return preferred_ref
-    from app.models.report import gen_reference_id
-    return gen_reference_id()
+def get_available_reference_id(db_session, owner_id: str, report_type: ReportType, preferred_num: int = 1) -> str:
+    from app.models.report import format_reference_id
+    candidate = format_reference_id(report_type, preferred_num)
+    if not db_session.query(Report).filter(Report.owner_id == owner_id, Report.report_type == report_type, Report.reference_id == candidate).first():
+        return candidate
+    # Find next available
+    for i in range(1, 10000):
+        c = format_reference_id(report_type, i)
+        if not db_session.query(Report).filter(Report.owner_id == owner_id, Report.report_type == report_type, Report.reference_id == c).first():
+            return c
+    return format_reference_id(report_type, 9999)
+
 
 
 def seed_database():
@@ -182,7 +189,7 @@ def seed_database():
         # 5. Sample Reports
         report1 = db.query(Report).filter(Report.name == "BANK (BSA)", Report.owner_id == admin.id).first()
         if not report1:
-            ref1 = get_available_reference_id(db, "1")
+            ref1 = get_available_reference_id(db, admin.id, ReportType.BSA, 1)
             report1 = Report(
                 name="BANK (BSA)",
                 reference_id=ref1,
@@ -196,7 +203,7 @@ def seed_database():
 
         report2 = db.query(Report).filter(Report.name == "BANKSTATEMENT (BSA Reports)", Report.owner_id == admin.id).first()
         if not report2:
-            ref2 = get_available_reference_id(db, "2")
+            ref2 = get_available_reference_id(db, admin.id, ReportType.BSA, 2)
             report2 = Report(
                 name="BANKSTATEMENT (BSA Reports)",
                 reference_id=ref2,

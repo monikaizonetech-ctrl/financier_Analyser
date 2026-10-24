@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import api from "../api/axios.js";
 import { useNotification } from "../context/NotificationContext.jsx";
 import { Badge } from "../components/Common.jsx";
@@ -20,6 +21,13 @@ function fmtRaw(n) {
   const num = parseFloat(n);
   if (isNaN(num)) return String(n);
   return new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
+}
+
+function fmtCount(n) {
+  if (n === undefined || n === null || n === "-" || n === "") return "—";
+  const num = parseInt(n, 10);
+  if (isNaN(num)) return String(n);
+  return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(num);
 }
 
 const SUBTYPE_COLOR = {
@@ -66,10 +74,19 @@ function TaxBar({ igst, cgst, sgst, cess, total }) {
   );
 }
 
-export default function GSTResultModal({ report, onClose }) {
+export default function GSTResultModal({ report, onClose, activeFileFilter = null }) {
   const { notify } = useNotification();
   const [downloading, setDownloading] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
+
+  // Consolidate all details from all uploaded files
+  const rawDetails = report?.result_summary?.details || [];
+  // Default to the clicked file filter or the first file so files show separately by default
+  const [selectedFileFilter, setSelectedFileFilter] = useState(() => {
+    if (activeFileFilter) return activeFileFilter;
+    if (rawDetails.length > 0) return rawDetails[0]?.file_name;
+    return null;
+  });
 
   const handleDownload = async (format) => {
     setDownloading(format);
@@ -94,9 +111,15 @@ export default function GSTResultModal({ report, onClose }) {
     }
   };
 
-  // Consolidate all details from all uploaded files
-  const details = report?.result_summary?.details || [];
-  const firstDetail = details[0] || {};
+  const details = selectedFileFilter && selectedFileFilter !== "ALL"
+    ? rawDetails.filter((d) => d.file_name === selectedFileFilter || d.id === selectedFileFilter)
+    : rawDetails;
+  const firstDetail = details[0] || rawDetails[0] || {};
+  const currentFileName = selectedFileFilter && selectedFileFilter !== "ALL"
+    ? selectedFileFilter
+    : (rawDetails.length === 1 ? rawDetails[0]?.file_name : null);
+
+
 
   // Aggregate across files
   const allAnalytics = details.map((d) => d.analytics || d).filter(Boolean);
@@ -231,47 +254,89 @@ export default function GSTResultModal({ report, onClose }) {
     { id: "files", label: "Files Summary", icon: "📁" },
   ];
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 py-6">
-      <div className="w-full max-w-5xl bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col max-h-[92vh] overflow-hidden">
+  const modalContent = (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-5 overflow-y-auto">
+      <div className="fixed inset-0" aria-hidden="true" onClick={onClose} />
+      <div className="relative w-full max-w-5xl bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col max-h-[92vh] overflow-hidden my-auto z-10" onClick={(e) => e.stopPropagation()}>
         {/* Modal Header */}
-        <div className="bg-gradient-to-r from-emerald-700 via-teal-700 to-slate-800 text-white px-6 py-4 flex items-center justify-between flex-shrink-0">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xl">🧾</span>
-              <h2 className="text-base font-bold">{report.name}</h2>
-              <span className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full font-medium">GST Analysis Report</span>
+        <div className="bg-gradient-to-r from-emerald-700 via-teal-700 to-slate-800 text-white px-4 sm:px-6 py-3.5 sm:py-4 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
+          <div className="min-w-0 pr-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xl shrink-0">🧾</span>
+              <h2 className="text-base font-bold truncate">{report.name}</h2>
+              <span className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full font-medium shrink-0">
+                GST Analysis Report
+              </span>
+              {currentFileName && (
+                <span className="inline-flex items-center gap-1 text-xs bg-emerald-500/40 text-emerald-100 border border-emerald-400/40 px-2.5 py-0.5 rounded-full font-semibold truncate max-w-xs" title={currentFileName}>
+                  <span>📄</span> {currentFileName}
+                </span>
+              )}
             </div>
-            <p className="text-xs text-white/60 mt-0.5">
-              {fileSummary.map((f) => f.subtype).join(" · ")} · {isFilingStats ? `${Number(totalReturnsFiled).toLocaleString("en-IN")} returns filed` : `${totalInvoices} invoices`} · {fileSummary.length} file(s)
+            <p className="text-xs text-white/80 mt-1.5 flex items-center gap-2 flex-wrap">
+              <span className="font-semibold text-white">{fileSummary.map((f) => f.subtype).join(" · ")}</span>
+              <span>•</span>
+              <span className="bg-white/10 px-2 py-0.5 rounded text-[11px] font-mono">
+                Ref: {report.reference_id || report.result_summary?.reference_id || "GST_004"}
+              </span>
+              <span>•</span>
+              <span>FY: {firstDetail.return_period || "FY 2018-2019"}</span>
+              <span>•</span>
+              <span>Analysed: {report.analysed_at ? new Date(report.analysed_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "Today"}</span>
+              <span>•</span>
+              <span>{isFilingStats ? `${fmtCount(totalReturnsFiled)} returns filed` : `${totalInvoices} invoices`}</span>
+              <span>•</span>
+              <span>{fileSummary.length} {fileSummary.length === 1 ? "file" : "files"}</span>
+              {rawDetails.length > 1 && (
+                <span className="inline-flex items-center gap-1.5 ml-0 sm:ml-2 mt-1 sm:mt-0">
+                  <span className="text-white/60">Viewing:</span>
+                  <select
+                    className="bg-emerald-900/80 text-white text-xs rounded px-2 py-0.5 border border-emerald-500/50 cursor-pointer focus:outline-none max-w-[200px] truncate"
+                    value={selectedFileFilter || "ALL"}
+                    onChange={(e) => setSelectedFileFilter(e.target.value === "ALL" ? null : e.target.value)}
+                  >
+                    <option value="ALL">All Files Combined ({rawDetails.length})</option>
+                    {rawDetails.map((d, idx) => (
+                      <option key={idx} value={d.file_name || `File ${idx + 1}`}>
+                        {d.file_name || `File ${idx + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                </span>
+              )}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5 shrink-0 self-end md:self-auto">
             <button
-              className="flex items-center gap-1.5 bg-emerald-500/90 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-all disabled:opacity-50"
+              className="flex items-center gap-2 bg-[#00a86b] hover:bg-[#00925d] text-black text-xs font-semibold px-3 py-1.5 rounded-xl transition-all disabled:opacity-50 cursor-pointer shadow-sm active:scale-95 min-h-[34px]"
               disabled={downloading === "xlsx"}
               onClick={() => handleDownload("xlsx")}
+              title="Download Excel"
             >
-              📊 {downloading === "xlsx" ? "..." : "Excel"}
+              <span className="text-sm leading-none">📊</span>
+              <span className="tracking-tight text-black font-semibold">Excel</span>
             </button>
             <button
-              className="flex items-center gap-1.5 bg-red-500/90 hover:bg-red-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-all disabled:opacity-50"
+              className="flex items-center gap-2 bg-[#f04438] hover:bg-[#dc3528] text-black text-xs font-semibold px-3 py-1.5 rounded-xl transition-all disabled:opacity-50 cursor-pointer shadow-sm active:scale-95 min-h-[34px]"
               disabled={downloading === "pdf"}
               onClick={() => handleDownload("pdf")}
+              title="Download PDF"
             >
-              📕 {downloading === "pdf" ? "..." : "PDF"}
+              <span className="text-sm leading-none">📕</span>
+              <span className="tracking-tight text-black font-semibold">PDF</span>
             </button>
-            <button onClick={onClose} className="ml-2 text-white/70 hover:text-white text-xl font-bold leading-none">&times;</button>
+            <button onClick={onClose} className="ml-2 text-white/70 hover:text-white text-2xl font-bold leading-none cursor-pointer p-1" aria-label="Close">&times;</button>
           </div>
         </div>
 
+
         {/* Tab Bar */}
-        <div className="flex gap-1 px-6 pt-3 pb-0 border-b border-gray-200 bg-gray-50 flex-shrink-0 overflow-x-auto">
+        <div className="flex gap-1 px-3 sm:px-6 pt-3 pb-0 border-b border-gray-200 bg-gray-50 shrink-0 overflow-x-auto">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-t-lg border-b-2 transition-all whitespace-nowrap ${
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-t-lg border-b-2 transition-all whitespace-nowrap min-h-[36px] ${
                 activeTab === tab.id
                   ? "border-emerald-600 text-emerald-700 bg-white"
                   : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-white/70"
@@ -283,14 +348,14 @@ export default function GSTResultModal({ report, onClose }) {
         </div>
 
         {/* Tab Content */}
-        <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-6 bg-gray-50/50">
 
           {/* OVERVIEW TAB */}
           {activeTab === "overview" && (
             isFilingStats ? (
               <div className="space-y-5">
                 {/* Filing Statistics KPI Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
                   <StatCard
                     label="Total Returns Filed"
                     value={Number(totalReturnsFiled).toLocaleString("en-IN")}
@@ -300,10 +365,10 @@ export default function GSTResultModal({ report, onClose }) {
                   />
                   <StatCard
                     label="Summed Eligible Taxpayers"
-                    value={Number(summedMonthlyEligible).toLocaleString("en-IN")}
+                    value={fmtCount(summedMonthlyEligible)}
                     icon="👥"
                     color="text-blue-700"
-                    sub="Sum of monthly active taxpayers"
+                    sub="Sum of monthly active taxpayers*"
                   />
                   <StatCard
                     label="Overall Filing Rate"
@@ -314,24 +379,24 @@ export default function GSTResultModal({ report, onClose }) {
                   />
                   <StatCard
                     label="Active Jurisdictions"
-                    value={`${stateStatsList.length || 38} States & UTs`}
+                    value={`${firstStats.states_and_uts_count || 36} States & UTs`}
                     icon="🗺️"
                     color="text-purple-700"
-                    sub="Reported coverage"
+                    sub="(+ 1 Other Territory)"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
                   <StatCard
                     label="Filed Within Due Date"
-                    value={Number(totalOnTime).toLocaleString("en-IN")}
+                    value={fmtCount(totalOnTime)}
                     icon="⏱️"
                     color="text-teal-700"
                     sub={totalReturnsFiled > 0 ? `${((totalOnTime / totalReturnsFiled) * 100).toFixed(1)}% of total filings` : undefined}
                   />
                   <StatCard
                     label="Filed Late (After Due Date)"
-                    value={Number(totalLate).toLocaleString("en-IN")}
+                    value={fmtCount(totalLate)}
                     icon="⏳"
                     color="text-amber-700"
                     sub={totalReturnsFiled > 0 ? `${((totalLate / totalReturnsFiled) * 100).toFixed(1)}% of total filings` : undefined}
@@ -357,7 +422,7 @@ export default function GSTResultModal({ report, onClose }) {
                   <h3 className="text-sm font-bold text-gray-800 mb-2 flex items-center justify-between">
                     <span className="flex items-center gap-2"><span>📊</span> Filing Timeliness Distribution</span>
                     <span className="text-xs font-semibold text-gray-500">
-                      Total: {Number(totalReturnsFiled).toLocaleString("en-IN")} returns
+                      Total: {fmtCount(totalReturnsFiled)} returns
                     </span>
                   </h3>
                   <div className="space-y-3 mt-3">
@@ -365,25 +430,25 @@ export default function GSTResultModal({ report, onClose }) {
                       <div
                         className="bg-emerald-500 transition-all duration-700"
                         style={{ width: `${totalReturnsFiled > 0 ? (totalOnTime / totalReturnsFiled) * 100 : 50}%` }}
-                        title={`On-time: ${Number(totalOnTime).toLocaleString("en-IN")}`}
+                        title={`On-time: ${fmtCount(totalOnTime)}`}
                       />
                       <div
                         className="bg-amber-500 transition-all duration-700"
                         style={{ width: `${totalReturnsFiled > 0 ? (totalLate / totalReturnsFiled) * 100 : 50}%` }}
-                        title={`Late: ${Number(totalLate).toLocaleString("en-IN")}`}
+                        title={`Late: ${fmtCount(totalLate)}`}
                       />
                     </div>
                     <div className="flex justify-between items-center text-xs">
                       <div className="flex items-center gap-2">
                         <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block" />
                         <span className="font-semibold text-gray-700">Filed On-Time (Due Date):</span>
-                        <span className="font-bold text-emerald-700">{Number(totalOnTime).toLocaleString("en-IN")}</span>
+                        <span className="font-bold text-emerald-700">{fmtCount(totalOnTime)}</span>
                         <span className="text-gray-400">({totalReturnsFiled > 0 ? ((totalOnTime / totalReturnsFiled) * 100).toFixed(1) : 0}%)</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="w-3 h-3 rounded-full bg-amber-500 inline-block" />
                         <span className="font-semibold text-gray-700">Filed Late:</span>
-                        <span className="font-bold text-amber-700">{Number(totalLate).toLocaleString("en-IN")}</span>
+                        <span className="font-bold text-amber-700">{fmtCount(totalLate)}</span>
                         <span className="text-gray-400">({totalReturnsFiled > 0 ? ((totalLate / totalReturnsFiled) * 100).toFixed(1) : 0}%)</span>
                       </div>
                     </div>
@@ -403,11 +468,11 @@ export default function GSTResultModal({ report, onClose }) {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">Summed Monthly Eligible Taxpayers*</span>
-                        <span className="font-semibold text-gray-800">{Number(summedMonthlyEligible).toLocaleString("en-IN")}</span>
+                        <span className="font-semibold text-gray-800">{fmtCount(summedMonthlyEligible)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">Total Returns Filed</span>
-                        <span className="font-bold text-emerald-700">{Number(totalReturnsFiled).toLocaleString("en-IN")}</span>
+                        <span className="font-bold text-emerald-700">{fmtCount(totalReturnsFiled)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">Overall Annual Filing Rate</span>
@@ -415,9 +480,12 @@ export default function GSTResultModal({ report, onClose }) {
                       </div>
                       <div className="flex justify-between border-t pt-2">
                         <span className="text-gray-500">States & UTs Reported</span>
-                        <span className="font-semibold text-gray-800">{stateStatsList.length || 38} Jurisdictions</span>
+                        <span className="font-semibold text-gray-800">{firstStats.states_and_uts_count || 36} States & UTs (+ 1 Other Territory)</span>
                       </div>
                     </div>
+                    <p className="text-[11px] text-gray-400 italic mt-3 pt-2 border-t">
+                      * Note: Figure represents the mathematical sum of monthly eligible taxpayer counts across 12 return periods, not distinct taxpayers.
+                    </p>
                   </div>
 
                   <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
@@ -438,8 +506,8 @@ export default function GSTResultModal({ report, onClose }) {
                               {st.name} ({st.code})
                             </span>
                             <div className="text-right">
-                              <span className="font-bold text-gray-800">{Number(st.total_filed).toLocaleString("en-IN")}</span>
-                              <span className="text-xs text-gray-400 ml-2">({st.filing_pct}%)</span>
+                              <span className="font-bold text-gray-800">{fmtCount(st.total_filed)}</span>
+                              <span className="text-xs text-gray-400 ml-2">({Number(st.filing_pct).toFixed(2)}%)</span>
                             </div>
                           </div>
                         ))}
@@ -716,10 +784,10 @@ export default function GSTResultModal({ report, onClose }) {
                         {monthlyStatsList.map((m, idx) => (
                           <tr key={idx} className="hover:bg-gray-50/70">
                             <td className="px-5 py-3 font-semibold text-gray-800">{m.period}</td>
-                            <td className="px-5 py-3 text-right text-gray-700">{Number(m.eligible).toLocaleString("en-IN")}</td>
-                            <td className="px-5 py-3 text-right text-emerald-700 font-medium">{Number(m.on_time).toLocaleString("en-IN")}</td>
-                            <td className="px-5 py-3 text-right text-amber-700 font-medium">{Number(m.late).toLocaleString("en-IN")}</td>
-                            <td className="px-5 py-3 text-right font-bold text-gray-900">{Number(m.total_filed).toLocaleString("en-IN")}</td>
+                            <td className="px-5 py-3 text-right text-gray-700">{fmtCount(m.eligible)}</td>
+                            <td className="px-5 py-3 text-right text-emerald-700 font-medium">{fmtCount(m.on_time)}</td>
+                            <td className="px-5 py-3 text-right text-amber-700 font-medium">{fmtCount(m.late)}</td>
+                            <td className="px-5 py-3 text-right font-bold text-gray-900">{fmtCount(m.total_filed)}</td>
                             <td className="px-5 py-3 text-right font-bold text-emerald-600">{Number(m.filing_pct).toFixed(2)}%</td>
                           </tr>
                         ))}
@@ -727,10 +795,10 @@ export default function GSTResultModal({ report, onClose }) {
                       <tfoot className="bg-gray-50 border-t-2 border-gray-200 font-bold text-gray-800">
                         <tr>
                           <td className="px-5 py-3 font-bold">Grand Total</td>
-                          <td className="px-5 py-3 text-right">{Number(summedMonthlyEligible).toLocaleString("en-IN")}</td>
-                          <td className="px-5 py-3 text-right text-emerald-700">{Number(totalOnTime).toLocaleString("en-IN")}</td>
-                          <td className="px-5 py-3 text-right text-amber-700">{Number(totalLate).toLocaleString("en-IN")}</td>
-                          <td className="px-5 py-3 text-right text-emerald-700">{Number(totalReturnsFiled).toLocaleString("en-IN")}</td>
+                          <td className="px-5 py-3 text-right">{fmtCount(summedMonthlyEligible)}</td>
+                          <td className="px-5 py-3 text-right text-emerald-700">{fmtCount(totalOnTime)}</td>
+                          <td className="px-5 py-3 text-right text-amber-700">{fmtCount(totalLate)}</td>
+                          <td className="px-5 py-3 text-right text-emerald-700">{fmtCount(totalReturnsFiled)}</td>
                           <td className="px-5 py-3 text-right text-emerald-600">{overallFilingPct}%</td>
                         </tr>
                       </tfoot>
@@ -798,8 +866,10 @@ export default function GSTResultModal({ report, onClose }) {
             <div className="space-y-4">
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-gray-800">🗺️ State-Wise Filing Performance ({stateStatsList.length} Jurisdictions)</h3>
-                  <span className="text-xs text-gray-500 font-medium">Ranked by code</span>
+                  <h3 className="text-sm font-bold text-gray-800">
+                    🗺️ State-Wise Filing Performance ({firstStats.states_and_uts_count || 36} States & UTs + {firstStats.other_territory_count || 1} Other Territory)
+                  </h3>
+                  <span className="text-xs text-gray-500 font-medium">Ranked by state code</span>
                 </div>
                 <div className="overflow-x-auto max-h-[60vh] overflow-y-auto">
                   <table className="w-full text-xs">
@@ -821,16 +891,16 @@ export default function GSTResultModal({ report, onClose }) {
                           <td className="px-4 py-2.5 font-mono text-gray-500 font-bold">{st.code}</td>
                           <td className="px-4 py-2.5 font-semibold text-gray-800">{st.name}</td>
                           <td className="px-4 py-2.5 text-right text-gray-600">
-                            {st.eligible !== null && st.eligible !== undefined ? Number(st.eligible).toLocaleString("en-IN") : "—"}
+                            {st.eligible !== null && st.eligible !== undefined ? fmtCount(st.eligible) : "—"}
                           </td>
                           <td className="px-4 py-2.5 text-right text-emerald-700">
-                            {st.on_time !== null && st.on_time !== undefined ? Number(st.on_time).toLocaleString("en-IN") : "—"}
+                            {st.on_time !== null && st.on_time !== undefined ? fmtCount(st.on_time) : "—"}
                           </td>
                           <td className="px-4 py-2.5 text-right text-amber-700">
-                            {st.late !== null && st.late !== undefined ? Number(st.late).toLocaleString("en-IN") : "—"}
+                            {st.late !== null && st.late !== undefined ? fmtCount(st.late) : "—"}
                           </td>
                           <td className="px-4 py-2.5 text-right font-bold text-gray-900">
-                            {st.total_filed !== null && st.total_filed !== undefined ? Number(st.total_filed).toLocaleString("en-IN") : "—"}
+                            {st.total_filed !== null && st.total_filed !== undefined ? fmtCount(st.total_filed) : "—"}
                           </td>
                           <td className="px-4 py-2.5 text-right font-bold text-emerald-600">
                             {st.filing_pct !== null && st.filing_pct !== undefined ? `${Number(st.filing_pct).toFixed(1)}%` : "Not Reported"}
@@ -846,6 +916,9 @@ export default function GSTResultModal({ report, onClose }) {
                       ))}
                     </tbody>
                   </table>
+                </div>
+                <div className="p-3 bg-gray-50/50 border-t border-gray-100 text-[11px] text-gray-500 italic">
+                  * Note: State Code 38 (Ladakh) was created post-bifurcation in Oct 2019; reported under Jammu & Kashmir (01) during period and preserved as Not Reported ('—'). State Code 97 (Other Territory / Centre Jurisdiction) is reported separately from the 36 States & UTs.
                 </div>
               </div>
             </div>
@@ -1202,6 +1275,7 @@ export default function GSTResultModal({ report, onClose }) {
                       <thead className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider border-b border-gray-200">
                         <tr>
                           <th className="px-4 py-3">Validation Check</th>
+                          <th className="px-4 py-3">Data Classification</th>
                           <th className="px-4 py-3">Source Section</th>
                           <th className="px-4 py-3 text-right">Source Reported</th>
                           <th className="px-4 py-3 text-right">Calculated / Expected</th>
@@ -1214,10 +1288,19 @@ export default function GSTResultModal({ report, onClose }) {
                         {allValidationChecks.map((chk, idx) => (
                           <tr key={idx} className="hover:bg-gray-50/70 transition-colors">
                             <td className="px-4 py-3 font-semibold text-gray-900">{chk.name || chk.id}</td>
-                            <td className="px-4 py-3 text-gray-600 font-mono">{chk.source_table || "-"}</td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-block px-2 py-0.5 text-[10px] font-semibold rounded ${
+                                chk.category === "Independently Verified"
+                                  ? "bg-purple-100 text-purple-800 border border-purple-200"
+                                  : "bg-blue-100 text-blue-800 border border-blue-200"
+                              }`}>
+                                {chk.category || "Source-Derived"}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-gray-600 font-mono text-[11px]">{chk.source_table || "-"}</td>
                             <td className="px-4 py-3 text-right font-mono font-bold text-gray-800">{chk.source_value || "-"}</td>
                             <td className="px-4 py-3 text-right font-mono text-gray-700">{chk.calc_value || "-"}</td>
-                            <td className="px-4 py-3 text-right font-mono font-bold text-gray-900">{chk.diff_display || (chk.difference !== undefined ? String(chk.difference) : "0.00")}</td>
+                            <td className="px-4 py-3 text-right font-mono font-bold text-gray-900">{chk.diff_display || (chk.difference !== undefined ? String(chk.difference) : "0")}</td>
                             <td className="px-4 py-3 text-center">
                               <span className={`inline-block px-2 py-0.5 text-[10px] font-bold rounded-full ${
                                 chk.status === "PASS"
@@ -1345,4 +1428,7 @@ export default function GSTResultModal({ report, onClose }) {
       </div>
     </div>
   );
+
+  return typeof document !== "undefined" ? createPortal(modalContent, document.body) : modalContent;
 }
+

@@ -48,17 +48,17 @@ export default function ContactUs() {
   };
 
   return (
-    <div className="p-6">
-      <div className="max-w-[1200px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+    <div className="p-3 sm:p-6">
+      <div className="max-w-[1200px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8">
         
         {/* ======================================================== */}
         {/* LEFT COLUMN (Form + Office Locations) */}
         {/* ======================================================== */}
-        <div className="lg:col-span-7 space-y-8">
+        <div className="lg:col-span-7 space-y-6 sm:space-y-8">
           
           {/* Send Us a Message Form */}
-          <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Send Us a Message</h2>
+          <div className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-gray-100">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">Send Us a Message</h2>
 
             {success && (
               <div className="mb-6 p-4 bg-green-50 text-green-700 rounded-lg font-medium">

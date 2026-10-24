@@ -6,6 +6,10 @@ from app.models.report import (  # noqa: F401
     ReportStatus,
     FileStatus,
     FileAuthenticity,
+    ReportReferenceCounter,
+    REPORT_TYPE_PREFIXES,
+    format_reference_id,
+    get_report_type_prefix,
 )
 from app.models.billing import (  # noqa: F401
     Subscription,

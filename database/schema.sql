@@ -23,7 +23,7 @@ CREATE TYPE report_status AS ENUM ('Need to analyse', 'Processing', 'Ready to us
 
 CREATE TABLE reports (
     id              VARCHAR(36) PRIMARY KEY,
-    reference_id    VARCHAR(64) UNIQUE NOT NULL,
+    reference_id    VARCHAR(64) NOT NULL,
     name            VARCHAR(255) NOT NULL,
     report_type     report_type NOT NULL,
     status          report_status NOT NULL DEFAULT 'Need to analyse',
@@ -31,7 +31,18 @@ CREATE TABLE reports (
     result_summary  JSONB,
     created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMP NOT NULL DEFAULT NOW(),
-    analysed_at     TIMESTAMP
+    analysed_at     TIMESTAMP,
+    CONSTRAINT uq_reports_owner_type_ref_id UNIQUE (owner_id, report_type, reference_id)
+);
+
+CREATE TABLE report_reference_counters (
+    id              VARCHAR(36) PRIMARY KEY,
+    owner_id        VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    report_type     VARCHAR(32) NOT NULL,
+    last_number     INTEGER NOT NULL DEFAULT 0,
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_report_ref_counter_owner_type UNIQUE (owner_id, report_type)
 );
 
 CREATE TABLE report_files (

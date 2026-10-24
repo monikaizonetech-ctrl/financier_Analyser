@@ -71,10 +71,10 @@ export default function TeamManagement() {
   return (
     <div>
       <div className="card p-0 overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-gray-100">
-          <h1 className="text-lg font-bold text-gray-900">Manage Users</h1>
-          <div className="flex items-center gap-3">
-            <select className="input-field w-44" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-5 py-3.5 border-b border-gray-100">
+          <h1 className="text-base sm:text-lg font-bold text-gray-900">Manage Users</h1>
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
+            <select className="input-field w-full sm:w-40 py-1.5 text-xs sm:text-sm" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
               <option value="">Filter by Role</option>
               {ROLES.map((r) => (
                 <option key={r} value={r}>
@@ -82,12 +82,14 @@ export default function TeamManagement() {
                 </option>
               ))}
             </select>
-            <button className="btn-secondary text-sm" onClick={() => fetchUsers(data.page)}>
-              ↻ Refresh
-            </button>
-            <button className="btn-primary text-sm" onClick={() => setShowAddUser(true)}>
-              + Add User
-            </button>
+            <div className="flex items-center gap-2 ml-auto sm:ml-0">
+              <button className="btn-secondary text-xs sm:text-sm py-1.5 px-3 min-h-[34px]" onClick={() => fetchUsers(data.page)}>
+                ↻ Refresh
+              </button>
+              <button className="btn-primary text-xs sm:text-sm py-1.5 px-3.5 min-h-[34px] whitespace-nowrap" onClick={() => setShowAddUser(true)}>
+                + Add User
+              </button>
+            </div>
           </div>
         </div>
 

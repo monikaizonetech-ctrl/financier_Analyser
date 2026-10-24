@@ -18,19 +18,19 @@ export default function Dashboard() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
+      <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 sm:mb-6">Dashboard</h1>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         <StatCard title="Bank Statement Analysed via Files" value={stats?.bank_statements_analysed ?? "—"} icon="🏦" />
         <StatCard title="GST Analysed via Files" value={stats?.gst_analysed ?? "—"} icon="🧾" />
         <StatCard title="ITR Analysed via Files" value={stats?.itr_analysed ?? "—"} icon="📑" />
       </div>
 
-      <div className="mt-8 flex gap-3">
-        <button className="btn-primary" onClick={() => setShowNewReport(true)}>
+      <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-2.5 sm:gap-3">
+        <button className="btn-primary text-sm sm:text-base py-2.5 px-4 text-center" onClick={() => setShowNewReport(true)}>
           + New Report
         </button>
-        <Link to="/my-reports" className="btn-secondary">
+        <Link to="/my-reports" className="btn-secondary text-sm sm:text-base py-2.5 px-4 text-center">
           View My Reports
         </Link>
       </div>

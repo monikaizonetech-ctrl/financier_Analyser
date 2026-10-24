@@ -39,6 +39,7 @@ export default function UploadReport() {
   const [uploading, setUploading] = useState(false);
   const [analysing, setAnalysing] = useState(false);
   const [showResult, setShowResult] = useState(false);
+  const [selectedFileForResult, setSelectedFileForResult] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [fileToDelete, setFileToDelete] = useState(null);
   const [analysisProgress, setAnalysisProgress] = useState({
@@ -295,10 +296,10 @@ export default function UploadReport() {
     <div className="min-h-screen bg-gray-50 text-gray-800 pb-16">
       {/* Top Header Workspace Navbar */}
       <header className={`bg-gradient-to-r ${typeMeta.bgGradient} text-white shadow-md`}>
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <button
             onClick={() => navigate("/my-reports")}
-            className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3 py-2 rounded-lg backdrop-blur-sm transition-all"
+            className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3 py-2 rounded-lg backdrop-blur-sm transition-all self-start sm:self-auto"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -307,7 +308,7 @@ export default function UploadReport() {
           </button>
 
           <div className="text-center">
-            <div className="flex items-center justify-center gap-2">
+            <div className="flex items-center justify-center gap-2 flex-wrap">
               <span className="text-xl">{typeMeta.icon}</span>
               <h1 className="text-base sm:text-lg font-bold tracking-tight text-white">{report.name}</h1>
               <Badge label={report.status} />
@@ -332,24 +333,24 @@ export default function UploadReport() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 mt-8 space-y-6">
+      <main className="max-w-6xl mx-auto px-3 sm:px-6 mt-6 sm:mt-8 space-y-5 sm:space-y-6">
         {/* Metadata Summary Banner */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-5 grid grid-cols-2 md:grid-cols-4 gap-4 divide-x divide-gray-100">
-          <div className="pr-4">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-4 sm:p-5 grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 md:divide-x divide-gray-100">
+          <div className="md:pr-4">
             <span className="text-xs font-medium text-gray-400 uppercase tracking-wider block">Applicant / Entity</span>
-            <span className="text-sm font-semibold text-gray-900 truncate block mt-0.5">{report.name}</span>
+            <span className="text-xs sm:text-sm font-semibold text-gray-900 truncate block mt-0.5">{report.name}</span>
           </div>
-          <div className="px-4">
+          <div className="md:px-4">
             <span className="text-xs font-medium text-gray-400 uppercase tracking-wider block">Reference ID</span>
-            <span className="text-sm font-mono text-gray-700 truncate block mt-0.5">{report.reference_id || "N/A"}</span>
+            <span className="text-xs sm:text-sm font-mono text-gray-700 truncate block mt-0.5">{report.reference_id || "N/A"}</span>
           </div>
-          <div className="px-4">
+          <div className="md:px-4">
             <span className="text-xs font-medium text-gray-400 uppercase tracking-wider block">Module Type</span>
-            <span className="text-sm font-semibold text-brand-600 truncate block mt-0.5">{typeMeta.shortLabel}</span>
+            <span className="text-xs sm:text-sm font-semibold text-brand-600 truncate block mt-0.5">{typeMeta.shortLabel}</span>
           </div>
-          <div className="pl-4">
+          <div className="md:pl-4">
             <span className="text-xs font-medium text-gray-400 uppercase tracking-wider block">Statements Uploaded</span>
-            <span className="text-sm font-semibold text-gray-900 truncate block mt-0.5">
+            <span className="text-xs sm:text-sm font-semibold text-gray-900 truncate block mt-0.5">
               {report.files.length} {report.files.length === 1 ? "File" : "Files"}
             </span>
           </div>
@@ -536,16 +537,36 @@ export default function UploadReport() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button
-                          className="text-gray-400 hover:text-red-600 p-1.5 rounded-md hover:bg-red-50 transition-colors"
-                          title="Remove file"
-                          onClick={() => setFileToDelete(f)}
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {report.status === "Ready to use" && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedFileForResult(f.file_name);
+                                setShowResult(true);
+                              }}
+                              className="text-brand-600 hover:text-brand-800 p-1.5 rounded-md hover:bg-brand-50 transition-colors cursor-pointer"
+                              title={`View report for ${f.file_name}`}
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="text-gray-400 hover:text-red-600 p-1.5 rounded-md hover:bg-red-50 transition-colors cursor-pointer"
+                            title="Remove file"
+                            onClick={() => setFileToDelete(f)}
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
                       </td>
+
                     </tr>
                   ))
                 )}
@@ -991,7 +1012,17 @@ export default function UploadReport() {
       )}
 
       {/* Results Modal */}
-      {showResult && <ReportResultModal report={report} onClose={() => setShowResult(false)} />}
+      {showResult && (
+        <ReportResultModal
+          report={report}
+          activeFile={selectedFileForResult}
+          onClose={() => {
+            setShowResult(false);
+            setSelectedFileForResult(null);
+          }}
+        />
+      )}
     </div>
   );
 }
+

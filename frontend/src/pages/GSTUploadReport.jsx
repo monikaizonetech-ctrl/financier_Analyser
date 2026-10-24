@@ -68,6 +68,7 @@ export default function GSTUploadReport() {
   const [uploading, setUploading] = useState(false);
   const [analysing, setAnalysing] = useState(false);
   const [showResult, setShowResult] = useState(false);
+  const [selectedFileForResult, setSelectedFileForResult] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [fileToDelete, setFileToDelete] = useState(null);
   const [selectedSubtype, setSelectedSubtype] = useState("AUTO");
@@ -138,6 +139,7 @@ export default function GSTUploadReport() {
     if (!files || files.length === 0) return;
     setUploading(true);
     try {
+      let lastUploadedFile = null;
       for (const file of files) {
         const formData = new FormData();
         formData.append("file", file);
@@ -145,16 +147,22 @@ export default function GSTUploadReport() {
         const params = new URLSearchParams(
           selectedSubtype && selectedSubtype !== "AUTO" ? { sub_type: selectedSubtype } : {}
         );
-        await api.post(`/reports/${reportId}/files?${params}`, formData, {
+        const upRes = await api.post(`/reports/${reportId}/files?${params}`, formData, {
           headers: { "Content-Type": "multipart/form-data" },
         });
+        if (upRes.data) lastUploadedFile = upRes.data;
       }
       notify(
         selectedSubtype === "AUTO"
-          ? `${files.length} file(s) uploaded (auto-identifying return types)`
-          : `${files.length} file(s) uploaded as ${selectedSubtype}`
+          ? `${files.length} file(s) uploaded. Starting separate automated analysis...`
+          : `${files.length} file(s) uploaded as ${selectedSubtype}. Starting separate automated analysis...`
       );
       await fetchReport();
+
+      // Automatically analyse the uploaded file straight away so its output is isolated and separate
+      if (lastUploadedFile && !lastUploadedFile.password_protected) {
+        await handleAnalyse(lastUploadedFile.id);
+      }
     } catch (err) {
       notify(apiErrorMessage(err, "Upload failed"), "error");
     } finally {
@@ -162,6 +170,7 @@ export default function GSTUploadReport() {
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
+
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files || []);
@@ -206,7 +215,8 @@ export default function GSTUploadReport() {
     } finally { setUnlocking(false); }
   };
 
-  const handleAnalyse = async () => {
+  const handleAnalyse = async (targetFileId = null) => {
+    const fileId = typeof targetFileId === "string" ? targetFileId : null;
     if (!report?.files?.length) { notify("Upload at least one GST return file before analysing", "warning"); return; }
     if (hasLockedFiles) { notify("Please unlock all password-protected files first", "warning"); return; }
     setAnalysing(true);
@@ -218,11 +228,17 @@ export default function GSTUploadReport() {
       } catch { }
     }, 350);
     try {
-      const res = await api.post(`/reports/${reportId}/analyse`, {});
+      const payload = fileId ? { file_id: fileId } : {};
+      const res = await api.post(`/reports/${reportId}/analyse`, payload);
       setAnalysisProgress({ current: 100, total: 100, percent: 100, message: "GST analysis complete!", stage: "completed" });
       await new Promise((r) => setTimeout(r, 500));
       setReport(res.data);
       notify("GST analysis complete. Report is ready.");
+      if (fileId) {
+        const fObj = res.data?.files?.find((f) => f.id === fileId);
+        if (fObj) setSelectedFileForResult(fObj.file_name);
+      }
+
       setShowResult(true);
     } catch (err) {
       notify(apiErrorMessage(err, "Analysis failed"), "error");
@@ -231,6 +247,7 @@ export default function GSTUploadReport() {
       setAnalysing(false);
     }
   };
+
 
   const confirmDeleteFile = async () => {
     if (!fileToDelete) return;
@@ -261,10 +278,10 @@ export default function GSTUploadReport() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50/30 to-teal-50/20 text-gray-800 pb-16">
       {/* Header */}
       <header className="bg-gradient-to-r from-emerald-700 via-teal-700 to-slate-800 text-white shadow-lg">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <button
             onClick={() => navigate("/my-reports")}
-            className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3 py-2 rounded-lg backdrop-blur-sm transition-all"
+            className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3 py-2 rounded-lg backdrop-blur-sm transition-all self-start sm:self-auto"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -273,7 +290,7 @@ export default function GSTUploadReport() {
           </button>
 
           <div className="text-center">
-            <div className="flex items-center justify-center gap-2">
+            <div className="flex items-center justify-center gap-2 flex-wrap">
               <span className="text-xl">🧾</span>
               <h1 className="text-base sm:text-lg font-bold tracking-tight text-white">{report.name}</h1>
               <Badge label={report.status} />
@@ -298,37 +315,37 @@ export default function GSTUploadReport() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 mt-8 space-y-6">
+      <main className="max-w-6xl mx-auto px-3 sm:px-6 mt-6 sm:mt-8 space-y-5 sm:space-y-6">
 
         {/* Metadata Banner */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-5 grid grid-cols-2 md:grid-cols-4 gap-4 divide-x divide-gray-100">
-          <div className="pr-4">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-4 sm:p-5 grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 md:divide-x divide-gray-100">
+          <div className="md:pr-4">
             <span className="text-xs font-medium text-gray-400 uppercase tracking-wider block">Entity / Applicant</span>
-            <span className="text-sm font-semibold text-gray-900 truncate block mt-0.5">{report.name}</span>
+            <span className="text-xs sm:text-sm font-semibold text-gray-900 truncate block mt-0.5">{report.name}</span>
           </div>
-          <div className="px-4">
+          <div className="md:px-4">
             <span className="text-xs font-medium text-gray-400 uppercase tracking-wider block">Reference ID</span>
-            <span className="text-sm font-mono text-gray-700 truncate block mt-0.5">{report.reference_id || "N/A"}</span>
+            <span className="text-xs sm:text-sm font-mono text-gray-700 truncate block mt-0.5">{report.reference_id || "N/A"}</span>
           </div>
-          <div className="px-4">
+          <div className="md:px-4">
             <span className="text-xs font-medium text-gray-400 uppercase tracking-wider block">Module</span>
-            <span className="text-sm font-semibold text-emerald-600 truncate block mt-0.5">GST Analysis</span>
+            <span className="text-xs sm:text-sm font-semibold text-emerald-600 truncate block mt-0.5">GST Analysis</span>
           </div>
-          <div className="pl-4">
+          <div className="md:pl-4">
             <span className="text-xs font-medium text-gray-400 uppercase tracking-wider block">Files Uploaded</span>
-            <span className="text-sm font-semibold text-gray-900 truncate block mt-0.5">
+            <span className="text-xs sm:text-sm font-semibold text-gray-900 truncate block mt-0.5">
               {report.files.length} {report.files.length === 1 ? "File" : "Files"}
             </span>
           </div>
         </div>
 
         {/* GSTR Subtype Selector Cards */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-5">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-4 sm:p-5">
           <h2 className="text-sm font-bold text-gray-800 mb-1 flex items-center gap-2">
             <span>📋</span> Select Return Type Before Upload
           </h2>
           <p className="text-xs text-gray-500 mb-4">Choose the GSTR type for the files you're about to upload. Each file is tagged with the selected type.</p>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {GSTR_SUBTYPES.map((s) => (
               <button
                 key={s.value}
@@ -412,7 +429,7 @@ export default function GSTUploadReport() {
 
         {/* Uploaded Files Table */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="px-6 py-4 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h2 className="font-bold text-gray-900 text-sm sm:text-base flex items-center gap-2">
                 <span>📁</span> Uploaded GST Return Files
@@ -421,20 +438,58 @@ export default function GSTUploadReport() {
                 Review uploaded returns before starting automated tax extraction and reconciliation
               </p>
             </div>
-            {report.files.length > 0 && (
+            <div className="flex items-center gap-2.5 flex-wrap">
+              {report.files.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="text-xs font-medium text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add More
+                </button>
+              )}
               <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className="text-xs font-medium text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+                className={`btn-primary text-xs font-semibold py-2 px-4 shadow-sm inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 cursor-pointer ${
+                  (analysing || report.files.length === 0 || hasLockedFiles) ? "opacity-60 cursor-not-allowed" : ""
+                }`}
+                disabled={analysing || report.files.length === 0 || hasLockedFiles}
+                onClick={handleAnalyse}
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-                </svg>
-                Add More
+                {analysing ? (
+                  <>
+                    <svg className="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                    <span>{analysisProgress.percent ? `${analysisProgress.percent}%` : "Processing..."}</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Analyse GST Returns
+                  </>
+                )}
               </button>
-            )}
+              {report.status === "Ready to use" && (
+                <button
+                  className={`text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors shadow-sm inline-flex items-center gap-1.5 ${
+                    allProcessed ? "bg-emerald-700 hover:bg-emerald-800 text-white cursor-pointer" : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                  }`}
+                  disabled={!allProcessed}
+                  onClick={() => setShowResult(true)}
+                >
+                  View GST Report
+                </button>
+              )}
+            </div>
           </div>
+
 
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
@@ -503,28 +558,72 @@ export default function GSTUploadReport() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <Badge label={f.authenticity} />
-                          {f.password_protected && <span title="Password-protected" className="text-sm">🔒</span>}
-                          {f.authenticity_reasons?.length > 0 && (
+                          {f.password_protected && (
+                            <span title="Original file was encrypted/password-protected" className="text-sm">
+                              🔒
+                            </span>
+                          )}
+                          {f.owner_restricted && (
+                            <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200" title="Restricted PDF opened with reader permissions">
+                              Restricted PDF (opened)
+                            </span>
+                          )}
+                          {f.authenticity_reasons && f.authenticity_reasons.length > 0 && (
                             <button
                               type="button"
                               onClick={() => setReasonsPopoverFile(f)}
-                              className="text-gray-400 hover:text-emerald-600 text-xs p-1 rounded-full hover:bg-gray-100 transition-colors"
-                              title="View details"
-                            >ℹ️</button>
+                              className="text-gray-400 hover:text-brand-600 text-xs p-1 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
+                              title="View authenticity checks & details"
+                            >
+                              ℹ️
+                            </button>
                           )}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button
-                          className="text-gray-400 hover:text-red-600 p-1.5 rounded-md hover:bg-red-50 transition-colors"
-                          title="Remove file"
-                          onClick={() => setFileToDelete(f)}
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {/* Separate per-file analysis button */}
+                          {f.file_status !== "Processed" && !analysing && (
+                            <button
+                              type="button"
+                              onClick={() => handleAnalyse(f.id)}
+                              className="text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2.5 py-1 rounded-md transition-colors shadow-2xs inline-flex items-center gap-1 cursor-pointer"
+                              title={`Analyse ${f.file_name} separately`}
+                            >
+                              ⚡ Analyse
+                            </button>
+                          )}
+                          {/* View separate report output */}
+                          {(f.file_status === "Processed" || report.status === "Ready to use") && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedFileForResult(f.file_name);
+                                setShowResult(true);
+                              }}
+                              className="text-emerald-600 hover:text-emerald-800 p-1.5 rounded-md hover:bg-emerald-50 transition-colors cursor-pointer"
+                              title={`View report for ${f.file_name}`}
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="text-gray-400 hover:text-red-600 p-1.5 rounded-md hover:bg-red-50 transition-colors cursor-pointer"
+                            title="Remove file"
+                            onClick={() => setFileToDelete(f)}
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
                       </td>
+
+
                     </tr>
                   ))
                 )}
@@ -606,60 +705,7 @@ export default function GSTUploadReport() {
           </div>
         )}
 
-        {/* Bottom Actions */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="text-xs text-gray-500 text-center sm:text-left">
-            {report.files.length > 0 ? (
-              <span className="text-emerald-700 font-medium flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                {report.files.length} return file(s) ready for analysis
-              </span>
-            ) : (
-              <span>Upload GST return files above to enable analysis</span>
-            )}
-          </div>
 
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            <button className="btn-secondary flex-1 sm:flex-none text-xs" onClick={() => navigate("/my-reports")}>
-              Cancel
-            </button>
-            <button
-              className={`btn-primary flex-1 sm:flex-none text-xs font-semibold py-2.5 px-6 shadow-sm inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 ${
-                (analysing || report.files.length === 0 || hasLockedFiles) ? "opacity-60 cursor-not-allowed" : ""
-              }`}
-              disabled={analysing || report.files.length === 0 || hasLockedFiles}
-              onClick={handleAnalyse}
-            >
-              {analysing ? (
-                <>
-                  <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                  </svg>
-                  <span>{analysisProgress.percent ? `${analysisProgress.percent}%` : "Processing..."}</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  Analyse GST Returns
-                </>
-              )}
-            </button>
-            {report.status === "Ready to use" && (
-              <button
-                className={`text-xs font-medium px-4 py-2.5 rounded-md transition-colors shadow-sm inline-flex items-center gap-1.5 ${
-                  allProcessed ? "bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer" : "bg-gray-200 text-gray-400 cursor-not-allowed"
-                }`}
-                disabled={!allProcessed}
-                onClick={() => setShowResult(true)}
-              >
-                View GST Report
-              </button>
-            )}
-          </div>
-        </div>
       </main>
 
       {/* Password Modal */}
@@ -667,8 +713,15 @@ export default function GSTUploadReport() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="w-full max-w-md bg-white rounded-xl shadow-2xl border border-gray-200 p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2"><span>🔒</span> Enter PDF Password</h3>
-              <button onClick={() => setUnlockModalFile(null)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">&times;</button>
+              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <span>🔒</span> Enter PDF Password
+              </h3>
+              <button
+                onClick={() => setUnlockModalFile(null)}
+                className="text-gray-400 hover:text-gray-600 text-xl font-bold leading-none cursor-pointer"
+              >
+                &times;
+              </button>
             </div>
             <div>
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">File Name</p>
@@ -676,26 +729,47 @@ export default function GSTUploadReport() {
             </div>
             <form onSubmit={handleUnlockSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Document Password</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Document Password
+                </label>
                 <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
                     value={passwordInput}
                     onChange={(e) => setPasswordInput(e.target.value)}
                     disabled={unlocking || lockouts[unlockModalFile.id] > 0}
-                    placeholder="Enter password..."
+                    placeholder="Enter password to unlock..."
                     autoFocus
-                    className="w-full text-sm px-3.5 py-2.5 pr-16 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                    className="w-full text-sm px-3.5 py-2.5 pr-16 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
                   />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-600 hover:text-gray-900 font-medium px-2 py-1 rounded bg-gray-100 hover:bg-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-600 hover:text-gray-900 font-medium px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 cursor-pointer"
+                  >
                     {showPassword ? "Hide" : "Show"}
                   </button>
                 </div>
-                {unlockError && <p className="text-xs text-red-600 mt-1.5 font-medium flex items-center gap-1"><span>⚠️</span> {unlockError}</p>}
+                {unlockError && (
+                  <p className="text-xs text-red-600 mt-1.5 font-medium flex items-center gap-1">
+                    <span>⚠️</span> {unlockError}
+                  </p>
+                )}
               </div>
               <div className="flex items-center justify-end gap-3 pt-2">
-                <button type="button" className="btn-secondary text-xs" onClick={() => setUnlockModalFile(null)} disabled={unlocking}>Cancel</button>
-                <button type="submit" disabled={unlocking || !passwordInput.trim() || lockouts[unlockModalFile.id] > 0} className="btn-primary text-xs font-semibold px-4 py-2 bg-emerald-600 hover:bg-emerald-700 inline-flex items-center gap-2">
+                <button
+                  type="button"
+                  className="btn-secondary text-xs"
+                  onClick={() => setUnlockModalFile(null)}
+                  disabled={unlocking}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={unlocking || !passwordInput.trim() || lockouts[unlockModalFile.id] > 0}
+                  className="btn-primary text-xs font-semibold px-4 py-2 inline-flex items-center gap-2"
+                >
                   {unlocking ? "Decrypting..." : "Unlock"}
                 </button>
               </div>
@@ -704,31 +778,56 @@ export default function GSTUploadReport() {
         </div>
       )}
 
-      {/* Authenticity Popover */}
+      {/* Authenticity Findings Modal / Popover */}
       {reasonsPopoverFile && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="w-full max-w-lg bg-white rounded-xl shadow-2xl border border-gray-200 p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2"><span>🛡️</span> Authenticity Inspection</h3>
-              <button onClick={() => setReasonsPopoverFile(null)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">&times;</button>
+              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <span>🛡️</span> Authenticity Inspection Findings
+              </h3>
+              <button
+                onClick={() => setReasonsPopoverFile(null)}
+                className="text-gray-400 hover:text-gray-600 text-xl font-bold leading-none cursor-pointer"
+              >
+                &times;
+              </button>
             </div>
+
             <div>
-              <p className="text-xs text-gray-500">File: <span className="text-gray-800 font-semibold">{reasonsPopoverFile.file_name}</span></p>
+              <p className="text-xs text-gray-500 font-medium">File: <span className="text-gray-800 font-semibold">{reasonsPopoverFile.file_name}</span></p>
               <div className="mt-2 flex items-center gap-2">
+                <span className="text-xs text-gray-500">Evaluation:</span>
                 <Badge label={reasonsPopoverFile.authenticity} />
-                {reasonsPopoverFile.password_protected && <span className="text-xs text-gray-600">🔒 Password Protected</span>}
+                {reasonsPopoverFile.password_protected && (
+                  <span className="text-xs text-gray-600 flex items-center gap-1">
+                    🔒 Password Protected
+                  </span>
+                )}
+                {reasonsPopoverFile.owner_restricted && (
+                  <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200" title="Restricted PDF opened with reader permissions">
+                    Restricted PDF (opened)
+                  </span>
+                )}
               </div>
             </div>
+
             <div className="bg-gray-50 rounded-lg p-3.5 border border-gray-200 max-h-60 overflow-y-auto">
-              <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Forensic Checks</h4>
+              <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Detailed Forensic Checks</h4>
               <ul className="text-xs space-y-1.5 text-gray-700 list-disc list-inside">
-                {(reasonsPopoverFile.authenticity_reasons || ["No anomalies found"]).map((r, i) => (
+                {(reasonsPopoverFile.authenticity_reasons || ["No specific forensic anomalies found"]).map((r, i) => (
                   <li key={i} className="leading-relaxed">{r}</li>
                 ))}
               </ul>
             </div>
+
             <div className="flex justify-end pt-1">
-              <button className="btn-secondary text-xs" onClick={() => setReasonsPopoverFile(null)}>Close</button>
+              <button
+                className="btn-secondary text-xs"
+                onClick={() => setReasonsPopoverFile(null)}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
@@ -747,7 +846,17 @@ export default function GSTUploadReport() {
       )}
 
       {/* Result Modal */}
-      {showResult && <GSTResultModal report={report} onClose={() => setShowResult(false)} />}
+      {showResult && (
+        <GSTResultModal
+          report={report}
+          activeFileFilter={selectedFileForResult}
+          onClose={() => {
+            setShowResult(false);
+            setSelectedFileForResult(null);
+          }}
+        />
+      )}
     </div>
   );
 }
+

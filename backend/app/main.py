@@ -26,6 +26,8 @@ try:
                 conn.execute(text("ALTER TABLE report_files ADD COLUMN IF NOT EXISTS owner_restricted BOOLEAN DEFAULT FALSE"))
             if "authenticity_reasons" not in existing_cols:
                 conn.execute(text("ALTER TABLE report_files ADD COLUMN IF NOT EXISTS authenticity_reasons JSON"))
+            conn.execute(text("ALTER TABLE report_files ALTER COLUMN year TYPE VARCHAR(100)"))
+            conn.execute(text("ALTER TABLE report_files ALTER COLUMN sub_type TYPE VARCHAR(100)"))
 
             # Ensure PostgreSQL ENUMs are converted to VARCHAR(50) and normalized
             if conn.dialect.name == "postgresql":

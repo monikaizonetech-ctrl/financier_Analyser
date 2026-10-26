@@ -542,6 +542,11 @@ def _month_key(d) -> str:
         return "Unknown"
 
 
+def _is_loan_debit(r: dict) -> bool:
+    desc = (r.get("description") or "").upper()
+    return ("HDB" in desc and "EMI" in desc)
+
+
 def _daily_series(rows: list[dict], start: date, end: date, opening_balance: float | None = None) -> list[tuple]:
     """Calendar-day balance series from start to end inclusive, carrying the
     last known balance forward across days with no transaction (standard
@@ -5273,53 +5278,152 @@ def build_excel_report(report_name: str, report_type: str, summary: dict) -> byt
     for c in range(6, 9):
         ws.cell(row=1, column=c).fill = PatternFill(start_color=NAVY, end_color=NAVY, fill_type="solid")
 
-    last_month = months[-1]
+    last_month = summary.get("selected_month") or (months[-1] if months else "Month")
     _style_col_headers(ws, 2, ["Particulars", last_month, "Total"], start_col=1)
     _style_col_headers(ws, 2, ["Counter Party", "Txn Count", "Total Amount"], start_col=6)
 
+    # Filter transactions strictly for the selected month
+    m_data = a.get("monthly", {}).get(last_month, {})
+    m_rows = [r for r in a.get("all_rows", []) if _month_key(r.get("date")) == last_month]
+
+    # Selected month opening / closing / min / max / avg balances
+    if m_rows:
+        first_m_cr = float(m_rows[0].get("credit") or 0.0)
+        first_m_dr = float(m_rows[0].get("debit") or 0.0)
+        m_opening_balance = round(m_rows[0]["balance"] - first_m_cr + first_m_dr, 2) if m_rows[0].get("balance") is not None else 0.0
+        if last_month == months[0]:
+            m_opening_balance = a.get("opening_balance", 0.0)
+        m_closing_balance = m_rows[-1]["balance"] if m_rows[-1].get("balance") is not None else a.get("closing_balance", 0.0)
+        m_balances = [r["balance"] for r in m_rows if r.get("balance") is not None]
+        m_max_balance = round(max(m_balances), 2) if m_balances else m_opening_balance
+        m_min_balance = round(min(m_balances), 2) if m_balances else m_opening_balance
+    else:
+        m_opening_balance = a.get("opening_balance", 0.0)
+        m_closing_balance = a.get("closing_balance", 0.0)
+        m_max_balance = a.get("max_balance", 0.0)
+        m_min_balance = a.get("min_balance", 0.0)
+
+    m_inflow_amt = m_data.get("credit", round(sum(float(r.get("credit") or 0.0) for r in m_rows), 2))
+    m_outflow_amt = m_data.get("debit", round(sum(float(r.get("debit") or 0.0) for r in m_rows), 2))
+    m_inflow_cnt = m_data.get("credit_count", len([r for r in m_rows if float(r.get("credit") or 0.0) > 0]))
+    m_outflow_cnt = m_data.get("debit_count", len([r for r in m_rows if float(r.get("debit") or 0.0) > 0]))
+    m_avg_balance = m_data.get("avg_balance", a.get("avg_balance", 0.0))
+
+    # Business credit & debit for selected month (consistent with business_credit_rows = credit_rows)
+    m_biz_cr_rows = [r for r in m_rows if float(r.get("credit") or 0.0) > 0]
+    m_biz_cr_cnt = len(m_biz_cr_rows)
+    m_biz_cr_amt = round(sum(float(r.get("credit") or 0.0) for r in m_biz_cr_rows), 2)
+    m_biz_dr_rows = [r for r in m_rows if float(r.get("debit") or 0.0) > 0]
+    m_biz_dr_cnt = len(m_biz_dr_rows)
+    m_biz_dr_amt = round(sum(float(r.get("debit") or 0.0) for r in m_biz_dr_rows), 2)
+
+    # Cash / ATM for selected month
+    m_cash_cr_rows = [r for r in m_rows if (r.get("payment_mode") in ("CASH", "ATM") or r.get("tag") == "CASH" or "CASH" in (r.get("category") or "").upper()) and float(r.get("credit") or 0.0) > 0]
+    m_cash_cr_cnt = len(m_cash_cr_rows)
+    m_cash_cr_amt = round(sum(float(r.get("credit") or 0.0) for r in m_cash_cr_rows), 2)
+    m_cash_dr_rows = [r for r in m_rows if (r.get("payment_mode") in ("CASH", "ATM") or r.get("tag") == "CASH" or "CASH" in (r.get("category") or "").upper() or "ATM" in (r.get("tag") or "").upper()) and float(r.get("debit") or 0.0) > 0]
+    m_cash_dr_cnt = len(m_cash_dr_rows)
+    m_cash_dr_amt = round(sum(float(r.get("debit") or 0.0) for r in m_cash_dr_rows), 2)
+
+    # Cheque for selected month
+    m_chq_cr_rows = [r for r in m_rows if (r.get("payment_mode") == "CHEQUE" or r.get("tag") == "CHQ" or (r.get("chq_no") and str(r.get("chq_no")).strip() not in ("", "-", "None", "0"))) and float(r.get("credit") or 0.0) > 0]
+    m_chq_cr_cnt = len(m_chq_cr_rows)
+    m_chq_cr_amt = round(sum(float(r.get("credit") or 0.0) for r in m_chq_cr_rows), 2)
+    m_chq_dr_rows = [r for r in m_rows if (r.get("payment_mode") == "CHEQUE" or r.get("tag") == "CHQ" or (r.get("chq_no") and str(r.get("chq_no")).strip() not in ("", "-", "None", "0"))) and float(r.get("debit") or 0.0) > 0]
+    m_chq_dr_cnt = len(m_chq_dr_rows)
+    m_chq_dr_amt = round(sum(float(r.get("debit") or 0.0) for r in m_chq_dr_rows), 2)
+
+    # Salary & Charges for selected month
+    m_sal_cr_rows = [r for r in m_rows if any(kw in (r.get("category") or "").lower() or kw in (r.get("description") or "").lower() for kw in ("salar", "payroll", "stipend", "wages")) and float(r.get("credit") or 0.0) > 0]
+    m_sal_cr_cnt = len(m_sal_cr_rows)
+    m_sal_cr_amt = round(sum(float(r.get("credit") or 0.0) for r in m_sal_cr_rows), 2)
+
+    m_charges_dr_rows = [r for r in m_rows if ("charge" in (r.get("category") or "").lower() or r.get("payment_mode") == "BANK CHARGE" or r.get("tag") == "Bank Charges & Tax" or "fee" in (r.get("category") or "").lower()) and float(r.get("debit") or 0.0) > 0]
+    m_charges_dr_cnt = len(m_charges_dr_rows)
+    m_charges_dr_amt = round(sum(float(r.get("debit") or 0.0) for r in m_charges_dr_rows), 2)
+
+    # Interest for selected month
+    m_interest_cr_rows = [r for r in m_rows if "interest" in (r.get("category") or "").lower() and float(r.get("credit") or 0.0) > 0]
+    m_interest_rec = round(sum(float(r.get("credit") or 0.0) for r in m_interest_cr_rows), 2)
+    m_interest_dr_rows = [r for r in m_rows if ("interest" in (r.get("category") or "").lower() or "int.coll" in (r.get("description") or "").lower()) and float(r.get("debit") or 0.0) > 0]
+    m_interest_paid = round(sum(float(r.get("debit") or 0.0) for r in m_interest_dr_rows), 2)
+
+    # Selected month ABB helper
+    def _m_abb(day_numbers):
+        vals = []
+        for day_no in day_numbers:
+            candidates = [r for r in m_rows if _to_date(r["date"]).day <= day_no]
+            if candidates:
+                vals.append(max(candidates, key=lambda r: _to_date(r["date"]))["balance"])
+            elif m_rows:
+                vals.append(m_rows[0]["balance"])
+        return round(mean(vals), 2) if vals else 0.0
+
+    # Loan / EMI for selected month
+    m_loan_rows = [r for r in m_rows if r.get("is_emi") or _is_loan_debit(r) or "loan" in (r.get("category") or "").lower() or "emi" in (r.get("category") or "").lower()]
+    m_loan_outflow_cnt = len(m_loan_rows)
+    m_loan_outflow_amt = round(sum(float(r.get("debit") or 0.0) for r in m_loan_rows), 2)
+    m_chq_retn_cnt = len([r for r in m_rows if any(kw in (r.get("description") or "").lower() for kw in ("return", "bounce", "insufficient", "dishonour", "dishonor"))])
+
+    # Counterparties for selected month
+    m_cp_cr = defaultdict(lambda: {"amount": 0.0, "count": 0})
+    m_cp_dr = defaultdict(lambda: {"amount": 0.0, "count": 0})
+    for r in m_rows:
+        cp = r.get("counterparty") or r.get("description") or "-"
+        cr_val = float(r.get("credit") or 0.0)
+        dr_val = float(r.get("debit") or 0.0)
+        if cr_val > 0:
+            m_cp_cr[cp]["amount"] += cr_val
+            m_cp_cr[cp]["count"] += 1
+        if dr_val > 0:
+            m_cp_dr[cp]["amount"] += dr_val
+            m_cp_dr[cp]["count"] += 1
+    m_cp_cr_sorted = sorted(m_cp_cr.items(), key=lambda kv: -kv[1]["amount"])
+    m_cp_dr_sorted = sorted(m_cp_dr.items(), key=lambda kv: -kv[1]["amount"])
+
     particulars = [
-        ("Opening Balance", a.get("opening_balance", 0), a.get("opening_balance", 0)),
-        ("Total Inflow Amount", a.get("monthly", {}).get(last_month, {})["credit"], a.get("total_credit", 0)),
-        ("Total Outflow Amount", a.get("monthly", {}).get(last_month, {})["debit"], a.get("total_debit", 0)),
-        ("Closing Balance", a.get("closing_balance", 0), a.get("closing_balance", 0)),
-        ("Total Inflow Counts", a.get("monthly", {}).get(last_month, {})["credit_count"], a.get("credit_count", 0)),
-        ("Total Outflow Counts", a.get("monthly", {}).get(last_month, {})["debit_count"], a.get("debit_count", 0)),
-        ("Max Balance", a.get("max_balance", 0), a.get("max_balance", 0)),
-        ("Min Balance", a.get("min_balance", 0), a.get("min_balance", 0)),
-        ("Average Balance", a.get("avg_balance", 0), a.get("avg_balance", 0)),
-        ("Business Credit Counts", a.get("business_credit_count", 0), a.get("business_credit_count", 0)),
-        ("Total Business Credit Amount", a.get("business_credit_amount", 0), a.get("business_credit_amount", 0)),
-        ("Business Debit Counts", a.get("business_debit_count", 0), a.get("business_debit_count", 0)),
-        ("Total Business Debit Amount", a.get("business_debit_amount", 0), a.get("business_debit_amount", 0)),
+        ("Opening Balance", m_opening_balance, a.get("opening_balance", 0)),
+        ("Total Inflow Amount", m_inflow_amt, a.get("total_credit", 0)),
+        ("Total Outflow Amount", m_outflow_amt, a.get("total_debit", 0)),
+        ("Closing Balance", m_closing_balance, a.get("closing_balance", 0)),
+        ("Total Inflow Counts", m_inflow_cnt, a.get("credit_count", 0)),
+        ("Total Outflow Counts", m_outflow_cnt, a.get("debit_count", 0)),
+        ("Max Balance", m_max_balance, a.get("max_balance", 0)),
+        ("Min Balance", m_min_balance, a.get("min_balance", 0)),
+        ("Average Balance", m_avg_balance, a.get("avg_balance", 0)),
+        ("Business Credit Counts", m_biz_cr_cnt, a.get("business_credit_count", 0)),
+        ("Total Business Credit Amount", m_biz_cr_amt, a.get("business_credit_amount", 0)),
+        ("Business Debit Counts", m_biz_dr_cnt, a.get("business_debit_count", 0)),
+        ("Total Business Debit Amount", m_biz_dr_amt, a.get("business_debit_amount", 0)),
         ("Internal Cr", None, 0),
         ("Internal Dr", None, 0),
-        ("CHQ/ECS Return Counts", None, len(a.get("chq_retn_txns", []))),
+        ("CHQ/ECS Return Counts", m_chq_retn_cnt, len(a.get("chq_retn_txns", []))),
         ("Loan Inflow Counts", None, 0),
         ("Loan Inflow", None, 0),
-        ("Loan/EMI Outflow Counts", None, len(a.get("loans", [])) + len(a.get("emi_txns", 0))),
+        ("Loan/EMI Outflow Counts", m_loan_outflow_cnt, len(a.get("loans", [])) + len(a.get("emi_txns", 0))),
         # Amount: sum recurring loan patterns + individual emi_txns not already counted in loans
-        ("Loan/EMI Outflow", None, round(
+        ("Loan/EMI Outflow", m_loan_outflow_amt, round(
             sum(l["amount"] * l["count"] for l in a.get("loans", []))
             + sum(float(r.get("debit") or 0.0) for r in a.get("emi_txns", 0)),
             2
         )),
         ("ECS/NACH Issued Counts", None, 0),
         ("ECS/NACH Issued", None, 0),
-        ("CASH Credit Counts", a.get("cash_credit_count", 0), a.get("cash_credit_count", 0)),
-        ("Total CASH Credit Amount", a.get("cash_credit_amount", 0), a.get("cash_credit_amount", 0)),
-        ("CASH Debit Counts", a.get("cash_debit_count", 0), a.get("cash_debit_count", 0)),
-        ("Total CASH Debit Amount", a.get("cash_debit_amount", 0), a.get("cash_debit_amount", 0)),
-        ("Cheque Credit Counts", a.get("cheque_credit_count", 0), a.get("cheque_credit_count", 0)),
-        ("Total Cheque Credit Amount", a.get("cheque_credit_amount", 0), a.get("cheque_credit_amount", 0)),
-        ("Cheque Debit Counts", a.get("cheque_debit_count", 0), a.get("cheque_debit_count", 0)),
-        ("Total Cheque Debit Amount", a.get("cheque_debit_amount", 0), a.get("cheque_debit_amount", 0)),
-        ("Interest Received", a.get("interest_received", 0), a.get("interest_received", 0)),
-        ("Interest Paid", a.get("interest_paid", 0), a.get("interest_paid", 0)),
-        ("ABB on 5,15,25", a.get("abb_5_15_25", 0), a.get("abb_5_15_25", 0)),
-        ("ABB on 5,15,20,25,30th/Last Date", a.get("abb_5_15_20_25_30", 0), a.get("abb_5_15_20_25_30", 0)),
-        ("ABB on 1,14,30th/Last Date", a.get("abb_1_14_30", 0), a.get("abb_1_14_30", 0)),
-        ("ABB on 5,15,25,30th/Last Date", a.get("abb_5_15_25_30", 0), a.get("abb_5_15_25_30", 0)),
-        ("ABB on 1,5,10,15,25", a.get("abb_1_5_10_15_25", 0), a.get("abb_1_5_10_15_25", 0)),
+        ("CASH Credit Counts", m_cash_cr_cnt, a.get("cash_credit_count", 0)),
+        ("Total CASH Credit Amount", m_cash_cr_amt, a.get("cash_credit_amount", 0)),
+        ("CASH Debit Counts", m_cash_dr_cnt, a.get("cash_debit_count", 0)),
+        ("Total CASH Debit Amount", m_cash_dr_amt, a.get("cash_debit_amount", 0)),
+        ("Cheque Credit Counts", m_chq_cr_cnt, a.get("cheque_credit_count", 0)),
+        ("Total Cheque Credit Amount", m_chq_cr_amt, a.get("cheque_credit_amount", 0)),
+        ("Cheque Debit Counts", m_chq_dr_cnt, a.get("cheque_debit_count", 0)),
+        ("Total Cheque Debit Amount", m_chq_dr_amt, a.get("cheque_debit_amount", 0)),
+        ("Interest Received", m_interest_rec, a.get("interest_received", 0)),
+        ("Interest Paid", m_interest_paid, a.get("interest_paid", 0)),
+        ("ABB on 5,15,25", _m_abb([5, 15, 25]), a.get("abb_5_15_25", 0)),
+        ("ABB on 5,15,20,25,30th/Last Date", _m_abb([5, 15, 20, 25, 30]), a.get("abb_5_15_20_25_30", 0)),
+        ("ABB on 1,14,30th/Last Date", _m_abb([1, 14, 30]), a.get("abb_1_14_30", 0)),
+        ("ABB on 5,15,25,30th/Last Date", _m_abb([5, 15, 25, 30]), a.get("abb_5_15_25_30", 0)),
+        ("ABB on 1,5,10,15,25", _m_abb([1, 5, 10, 15, 25]), a.get("abb_1_5_10_15_25", 0)),
     ]
     for i, (label, month_val, total_val) in enumerate(particulars):
         row = 3 + i
@@ -5414,10 +5518,9 @@ def build_excel_report(report_name: str, report_type: str, summary: dict) -> byt
         ws.cell(row=row, column=c, value=v)
     row += 1
     n_months = max(len(months), 1)
-    dur = a.get("duration_days", 30) or 30
-    for c, v in enumerate([f"Monthly Avg. ({span})", round((total_credit / dur) * 30, 2), round((total_debit / dur) * 30, 2),
-                            round((a.get("net_cash_flow", 0) / dur) * 30, 2), a.get("avg_balance", 0),
-                            round((a.get("credit_count", 0) / dur) * 30, 2), round((a.get("debit_count", 0) / dur) * 30, 2), "-"], start=1):
+    for c, v in enumerate([f"Monthly Avg. ({span})", round(total_credit / n_months, 2), round(total_debit / n_months, 2),
+                            round(a.get("net_cash_flow", 0) / n_months, 2), a.get("avg_balance", 0),
+                            round(a.get("credit_count", 0) / n_months, 2), round(a.get("debit_count", 0) / n_months, 2), "-"], start=1):
         ws.cell(row=row, column=c, value=v)
     row += 2
     for n in (3, 6, 9, 12):
@@ -5502,16 +5605,16 @@ def build_excel_report(report_name: str, report_type: str, summary: dict) -> byt
         ws.cell(row=row, column=10, value=f"{pct}%")
 
     ws.cell(row=3, column=13, value=f"Total ({last_month})")
-    ws.cell(row=3, column=14, value=a.get("monthly", {}).get(last_month, {})["credit"])
-    ws.cell(row=3, column=15, value=a.get("monthly", {}).get(last_month, {})["credit_count"])
+    ws.cell(row=3, column=14, value=m_inflow_amt)
+    ws.cell(row=3, column=15, value=m_inflow_cnt)
     ws.cell(row=3, column=16, value=f"Total ({last_month})")
-    ws.cell(row=3, column=17, value=a.get("monthly", {}).get(last_month, {})["debit"])
-    ws.cell(row=3, column=18, value=a.get("monthly", {}).get(last_month, {})["debit_count"])
-    for i, (cp, stats) in enumerate(cp_credit_items[:5]):
+    ws.cell(row=3, column=17, value=m_outflow_amt)
+    ws.cell(row=3, column=18, value=m_outflow_cnt)
+    for i, (cp, stats) in enumerate(m_cp_cr_sorted[:5]):
         ws.cell(row=4 + i, column=13, value=cp)
         ws.cell(row=4 + i, column=14, value=round(stats["amount"], 2))
         ws.cell(row=4 + i, column=15, value=stats["count"])
-    for i, (cp, stats) in enumerate(cp_debit_items[:5]):
+    for i, (cp, stats) in enumerate(m_cp_dr_sorted[:5]):
         ws.cell(row=4 + i, column=16, value=cp)
         ws.cell(row=4 + i, column=17, value=round(stats["amount"], 2))
         ws.cell(row=4 + i, column=18, value=stats["count"])
@@ -5801,14 +5904,14 @@ def build_excel_report(report_name: str, report_type: str, summary: dict) -> byt
     ws["A3"], ws["B3"], ws["C3"] = " ", "Amount", "Txn Count"
     ws["A4"] = "index"
     rows_ms = [
-        ("Total Credits", a.get("monthly", {}).get(last_month, {})["credit"], a.get("monthly", {}).get(last_month, {})["credit_count"]),
-        ("   CASH CR", a.get("cash_credit_amount", 0), a.get("cash_credit_count", 0)),
-        ("   CHQ CR", a.get("cheque_credit_amount", 0), a.get("cheque_credit_count", 0)),
-        ("   Salary CR", round(sum(float(r.get("credit") or 0.0) for r in a.get("salary_txns", 0)), 2), len(a.get("salary_txns", 0))),
-        ("Total Debits", a.get("monthly", {}).get(last_month, {})["debit"], a.get("monthly", {}).get(last_month, {})["debit_count"]),
-        ("   CASH DR", a.get("cash_debit_amount", 0), a.get("cash_debit_count", 0)),
-        ("   CHQ DR", a.get("cheque_debit_amount", 0), a.get("cheque_debit_count", 0)),
-        ("   Charges DR", round(sum(float(r.get("debit") or 0.0) for r in a.get("charges_txns", 0)), 2), len(a.get("charges_txns", 0))),
+        ("Total Credits", m_inflow_amt, m_inflow_cnt),
+        ("   CASH CR", m_cash_cr_amt, m_cash_cr_cnt),
+        ("   CHQ CR", m_chq_cr_amt, m_chq_cr_cnt),
+        ("   Salary CR", m_sal_cr_amt, m_sal_cr_cnt),
+        ("Total Debits", m_outflow_amt, m_outflow_cnt),
+        ("   CASH DR", m_cash_dr_amt, m_cash_dr_cnt),
+        ("   CHQ DR", m_chq_dr_amt, m_chq_dr_cnt),
+        ("   Charges DR", m_charges_dr_amt, m_charges_dr_cnt),
     ]
     for i, (label, amt, cnt) in enumerate(rows_ms):
         row = 5 + i
@@ -5899,11 +6002,12 @@ def build_excel_report(report_name: str, report_type: str, summary: dict) -> byt
     ws["C2"] = last_month
     ws["C2"].fill = PatternFill(start_color=HEADER_BLUE, end_color=HEADER_BLUE, fill_type="solid")
     ws["C2"].font = Font(bold=True)
-    row = 3
-    top_cps = list(dict.fromkeys(list(a.get("cp_credit", {}).keys())[:3] + list(a.get("cp_debit", {}).keys())[:3]))
+    top_cps = list(dict.fromkeys(list(m_cp_cr.keys())[:3] + list(m_cp_dr.keys())[:3]))
+    if not top_cps:
+        top_cps = list(dict.fromkeys(list(a.get("cp_credit", {}).keys())[:3] + list(a.get("cp_debit", {}).keys())[:3]))
     for cp in top_cps[:2]:
-        cr = a.get("cp_credit", {}).get(cp, {"amount": 0, "count": 0})
-        dr = a.get("cp_debit", {}).get(cp, {"amount": 0, "count": 0})
+        cr = m_cp_cr.get(cp, {"amount": 0, "count": 0})
+        dr = m_cp_dr.get(cp, {"amount": 0, "count": 0})
         ws.cell(row=row, column=1, value=cp)
         ws.merge_cells(start_row=row, start_column=1, end_row=row + 3, end_column=1)
         ws.cell(row=row, column=2, value="credit")
@@ -5963,15 +6067,19 @@ def build_excel_report(report_name: str, report_type: str, summary: dict) -> byt
     for cp in all_cps:
         cr = a.get("cp_credit", {}).get(cp)
         dr = a.get("cp_debit", {}).get(cp)
+        m_cr_val = m_cp_cr.get(cp, {}).get("amount", 0.0)
+        m_dr_val = m_cp_dr.get(cp, {}).get("amount", 0.0)
         ws.cell(row=row, column=1, value=f"{cp} (CR)")
         if cr:
             ws.cell(row=row, column=2, value=round(cr["amount"], 2))
-            ws.cell(row=row, column=3, value=round(cr["amount"], 2))
+            if m_cr_val > 0:
+                ws.cell(row=row, column=3, value=round(m_cr_val, 2))
         row += 1
         ws.cell(row=row, column=1, value=f"{cp} (DR)")
         if dr:
             ws.cell(row=row, column=2, value=round(dr["amount"], 2))
-            ws.cell(row=row, column=3, value=round(dr["amount"], 2))
+            if m_dr_val > 0:
+                ws.cell(row=row, column=3, value=round(m_dr_val, 2))
         row += 1
 
     repay_data = a.get("repayment_capacity")

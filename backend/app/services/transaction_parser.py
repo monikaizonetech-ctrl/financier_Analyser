@@ -1371,16 +1371,19 @@ def parse_indian_bank_text_transactions(
     meta: dict | None = None,
 ) -> list[dict]:
     """
-    Dedicated parser for Indian Bank (IDIB) text-layout statements.
+    Dedicated spatial parser for Indian Bank (IDIB) text-layout statements.
 
-    Uses a strict state-machine that respects the exact line boundaries of
-    Indian Bank's layout to prevent narration bleed between transactions.
-    Zero-amount rows are silently dropped.
+    Uses vertical gap clustering on each page's transaction table area
+    (bounded between 'Brought Forward' and 'Carried Forward' / 'CLOSING BALANCE :')
+    to isolate each transaction row block without narration bleed.
+    Extracts Post Date, Value Date, Cheque/Reference Number, Debit, Credit,
+    Running Balance, and complete multi-line descriptions accurately.
+    Zero-amount administrative delink rows are silently dropped.
     """
     # 0. Extract Brought Forward balance from the FIRST "Brought Forward" line before any transaction
     opening_balance_dec: Decimal | None = None
     for page in doc.pages:
-        for line in page.transaction_lines:
+        for line in page.lines:
             m_bf = re.search(r"Brought\s+Forward\s+([\d,]+\.?\d*)", line.text, re.I)
             if m_bf:
                 opening_balance_dec = Decimal(m_bf.group(1).replace(",", "")).quantize(
@@ -1398,148 +1401,173 @@ def parse_indian_bank_text_transactions(
     if meta is not None and opening_balance_dec is not None:
         meta["opening_balance"] = float(opening_balance_dec)
 
-    # Collect all non-noise lines across pages
-    all_lines: list[tuple[int, str]] = []  # (page_number, text)
-    for page in doc.pages:
-        for line in page.transaction_lines:
-            text = line.text.strip()
-            if text and not _ib_is_noise(text):
-                all_lines.append((page.page_number, text))
-
     raw_txns: list[dict] = []
-    prefix_buffer: list[str] = []
-    current_txn: dict | None = None
-    N = len(all_lines)
-    idx = 0
 
-    while idx < N:
-        pno, line = all_lines[idx]
-        d_m = _IB_DATE_START.match(line)
+    for page in doc.pages:
+        pno = page.page_number
+        in_txn = False
+        txn_lines: list[ExtractedLine] = []
 
-        if d_m:
-            # ---------- NEW TRANSACTION DATE LINE ----------
-            date_str = d_m.group(1) or d_m.group(3)   # first dd/mm/yy
-            m_amt = _IB_AMT_BAL.search(line)
+        # Isolate transaction table lines between Brought Forward and Carried Forward / Closing Balance
+        for line in page.lines:
+            text_lower = line.text.lower()
+            if "brought forward" in text_lower:
+                in_txn = True
+                continue
+            if "carried forward" in text_lower or "closing balance" in text_lower:
+                in_txn = False
+                break
+            if in_txn:
+                txn_lines.append(line)
 
-            if m_amt:
-                # Single-line transaction – amount already on this line
-                mid_narr = line[d_m.end():m_amt.start()].strip()
-                amt = float(m_amt.group(1).replace(",", ""))
-                bal = float(m_amt.group(2).replace(",", ""))
-                current_txn = {
-                    "page": pno,
-                    "date_str": date_str,
-                    "prefix": list(prefix_buffer),
-                    "mid": mid_narr,
-                    "suffix": [],
-                    "amt": amt,
-                    "bal": bal,
-                    "raw_lines": list(prefix_buffer) + [line],
-                }
-                raw_txns.append(current_txn)
-                prefix_buffer = []
-                idx += 1
+        # Cluster lines into transaction blocks based on vertical gap (> 10.5 pt)
+        blocks: list[list[ExtractedLine]] = []
+        curr_block: list[ExtractedLine] = []
+        prev_y: float | None = None
 
-                # Post-amount lines: suffix of current row OR prefix of next
-                while idx < N:
-                    _, nxt = all_lines[idx]
-                    if _IB_DATE_START.match(nxt):
-                        break
-                    if _ib_is_prefix_start(nxt):
-                        prefix_buffer.append(nxt)
-                        idx += 1
-                        while idx < N:
-                            _, nxt2 = all_lines[idx]
-                            if _IB_DATE_START.match(nxt2):
-                                break
-                            prefix_buffer.append(nxt2)
-                            idx += 1
-                        break
-                    current_txn["suffix"].append(nxt)
-                    current_txn["raw_lines"].append(nxt)
-                    idx += 1
-
+        for line in txn_lines:
+            if prev_y is not None and (line.y_top - prev_y) > 10.5:
+                if curr_block:
+                    blocks.append(curr_block)
+                curr_block = [line]
             else:
-                # Multi-line transaction – amounts come on a later line
-                mid_narr = line[d_m.end():].strip()
-                current_txn = {
-                    "page": pno,
-                    "date_str": date_str,
-                    "prefix": list(prefix_buffer),
-                    "mid": mid_narr,
-                    "suffix": [],
-                    "amt": None,
-                    "bal": None,
-                    "raw_lines": list(prefix_buffer) + [line],
-                }
-                raw_txns.append(current_txn)
-                prefix_buffer = []
-                idx += 1
+                curr_block.append(line)
+            prev_y = line.y_top
 
-                # Accumulate until the line ending with <amt> <bal>Cr
-                while idx < N:
-                    _, nxt = all_lines[idx]
-                    m_end = _IB_AMT_BAL.search(nxt)
-                    if m_end:
-                        current_txn["amt"] = float(m_end.group(1).replace(",", ""))
-                        current_txn["bal"] = float(m_end.group(2).replace(",", ""))
-                        end_narr = nxt[: m_end.start()].strip()
-                        if end_narr:
-                            current_txn["suffix"].append(end_narr)
-                        current_txn["raw_lines"].append(nxt)
-                        idx += 1
+        if curr_block:
+            blocks.append(curr_block)
 
-                        # Post-amount lines: suffix or next prefix
-                        while idx < N:
-                            _, sub = all_lines[idx]
-                            if _IB_DATE_START.match(sub):
-                                break
-                            if _ib_is_prefix_start(sub):
-                                prefix_buffer.append(sub)
-                                idx += 1
-                                while idx < N:
-                                    _, sub2 = all_lines[idx]
-                                    if _IB_DATE_START.match(sub2):
-                                        break
-                                    prefix_buffer.append(sub2)
-                                    idx += 1
-                                break
-                            current_txn["suffix"].append(sub)
-                            current_txn["raw_lines"].append(sub)
-                            idx += 1
-                        break
-                    else:
-                        if _IB_DATE_START.match(nxt):
-                            break  # safety: new date without amounts
-                        current_txn["suffix"].append(nxt)
-                        current_txn["raw_lines"].append(nxt)
-                        idx += 1
-        else:
-            prefix_buffer.append(line)
-            idx += 1
+        for b in blocks:
+            block_text = " ".join(l.text for l in b)
+            # Skip administrative delink records (0.00 with no balance)
+            if "0.00" in block_text and not re.search(r"[\d,]+\.\d{2}\s*(?:Cr|Dr)", block_text, re.I):
+                continue
 
-    # Build narration and filter zero-amount rows
-    valid_txns: list[dict] = []
-    for t in raw_txns:
-        parts = t["prefix"] + ([t["mid"]] if t["mid"] else []) + t["suffix"]
-        narration = " ".join(p for p in parts if p).strip()
-        amt = t["amt"]
-        if amt is None or amt == 0.0:
-            continue
-        t["narration"] = narration
-        valid_txns.append(t)
+            # Identify the line containing transaction dates
+            date_line_idx = -1
+            for idx, l in enumerate(b):
+                if _IB_DATE_START.search(l.text):
+                    date_line_idx = idx
+                    break
+
+            if date_line_idx == -1:
+                continue
+
+            dl = b[date_line_idx]
+            dt = dl.text
+            d_m = _IB_DATE_START.search(dt)
+            if not d_m:
+                continue
+
+            post_date_str = d_m.group(1) or d_m.group(3)
+            val_date_str = d_m.group(2) or d_m.group(4)
+
+            post_date = parse_date(post_date_str)
+            val_date = parse_date(val_date_str) if val_date_str else post_date
+            val_date_formatted = val_date.strftime("%d/%m/%Y") if val_date else ""
+
+            # Extract Running Balance
+            bal_dec: Decimal | None = None
+            bal_words = [w for w in dl.words if w.x0 >= 485]
+            for bw in bal_words:
+                m = re.search(r"([\d,]+\.\d{2})(?:Cr|Dr)", bw.text, re.I)
+                if m:
+                    bal_dec = Decimal(m.group(1).replace(",", "")).quantize(
+                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                    )
+                    break
+            if bal_dec is None:
+                m = re.search(r"([\d,]+\.\d{2})\s*(?:Cr|Dr)", dt, re.I)
+                if m:
+                    bal_dec = Decimal(m.group(1).replace(",", "")).quantize(
+                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                    )
+
+            if bal_dec is None:
+                continue
+
+            # Extract Amount (Debit: ~370-432, Credit: ~432-485)
+            amt_dec: Decimal | None = None
+            amt_words = [w for w in dl.words if 370 <= w.x0 < 485]
+            for aw in amt_words:
+                m = re.search(r"([\d,]+\.\d{2})", aw.text)
+                if m:
+                    amt_dec = Decimal(m.group(1).replace(",", "")).quantize(
+                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                    )
+                    break
+            if amt_dec is None:
+                matches = list(re.finditer(r"([\d,]+\.\d{2})", dt))
+                if len(matches) >= 2:
+                    amt_dec = Decimal(matches[-2].group(1).replace(",", "")).quantize(
+                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                    )
+
+            # Extract Cheque Number (318 <= x < 375, or ChqNo: in text)
+            chq_str = ""
+            chq_words = [w for w in dl.words if 318 <= w.x0 < 375 and re.match(r"^\d{4,10}$", w.text.strip())]
+            if chq_words:
+                chq_str = chq_words[0].text.strip()
+            else:
+                # Handle merged token boundary (e.g. JUNCTION329683)
+                merged_words = [w for w in dl.words if 310 <= w.x1 < 375 and re.search(r"([A-Za-z/]+)(\d{5,8})$", w.text.strip())]
+                if merged_words:
+                    m = re.search(r"([A-Za-z/]+)(\d{5,8})$", merged_words[0].text.strip())
+                    chq_str = m.group(2) if m else ""
+                else:
+                    m_chq = re.search(r"ChqNo\s*:\s*(\d+)", block_text, re.I)
+                    if m_chq:
+                        chq_str = m_chq.group(1)
+
+            # Assemble description words across all lines belonging exclusively to this transaction
+            desc_parts: list[str] = []
+            for idx, l in enumerate(b):
+                if idx == date_line_idx:
+                    line_desc_words: list[str] = []
+                    for w in l.words:
+                        w_txt = w.text.strip()
+                        if w.x0 < 130:
+                            continue  # Date columns
+                        if w.x0 >= 375:
+                            continue  # Amount / Balance columns
+                        if chq_str and w_txt == chq_str:
+                            continue  # Cheque column
+                        if chq_str and w_txt.endswith(chq_str) and len(w_txt) > len(chq_str):
+                            w_txt = w_txt[:-len(chq_str)].strip()
+                        if w_txt:
+                            line_desc_words.append(w_txt)
+                    if line_desc_words:
+                        desc_parts.append(" ".join(line_desc_words))
+                else:
+                    line_words = [w.text.strip() for w in l.words if w.x0 < 375]
+                    if line_words:
+                        desc_parts.append(" ".join(line_words))
+
+            description = re.sub(r"\s+", " ", " ".join(desc_parts).strip())
+
+            raw_txns.append({
+                "page": pno,
+                "date": post_date,
+                "value_date_str": val_date_formatted,
+                "description": description,
+                "chq_no": chq_str,
+                "amt": amt_dec,
+                "bal": bal_dec,
+                "raw_lines": [l.text for l in b],
+            })
 
     # Convert to CanonicalTransaction dicts using balance-difference method
     result: list[dict] = []
     prev_bal = opening_balance_dec
     parse_errors = []
 
-    for idx, t in enumerate(valid_txns, start=1):
-        d = parse_date(t["date_str"])
+    for idx, t in enumerate(raw_txns, start=1):
+        d = t["date"]
         if d is None:
             continue
-        bal_dec = Decimal(str(t["bal"])).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        amt_dec = Decimal(str(t["amt"])).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+        bal_dec = t["bal"]
+        amt_dec = t["amt"]
 
         if prev_bal is not None:
             diff = bal_dec - prev_bal
@@ -1559,15 +1587,15 @@ def parse_indian_bank_text_transactions(
                 indicator = "NC"
                 t_type = TransactionType.UNCERTAIN
 
-            if abs(diff) != amt_dec:
+            if amt_dec is not None and abs(diff) != amt_dec:
                 err_msg = (
                     f"Row {idx} ({d}): parsed amount {amt_dec} != |balance delta| {abs(diff)} "
-                    f"(prev_bal={prev_bal}, bal={bal_dec}, desc={t['narration'][:50]})"
+                    f"(prev_bal={prev_bal}, bal={bal_dec}, desc={t['description'][:50]})"
                 )
                 parse_errors.append(err_msg)
         else:
             credit_dec = Decimal("0.00")
-            debit_dec = amt_dec
+            debit_dec = amt_dec or Decimal("0.00")
             indicator = "DR"
             t_type = TransactionType.EXPENSE
 
@@ -1575,13 +1603,15 @@ def parse_indian_bank_text_transactions(
 
         txn = CanonicalTransaction(
             date=d,
-            description=t["narration"] or "Transaction",
+            description=t["description"] or "Transaction",
+            reference=t["chq_no"],
             debit=float(debit_dec),
             credit=float(credit_dec),
             balance=float(bal_dec),
             source_page=t["page"],
             raw_text="\n".join(t["raw_lines"])[:2000],
             transaction_type=t_type,
+            value_date=t["value_date_str"],
             extra_metadata={"indicator": indicator} if indicator else {},
         )
         t_dict = txn.to_dict(file_name=file_name, meta=meta)

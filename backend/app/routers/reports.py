@@ -365,7 +365,7 @@ def upload_report_file(
                     if detected_sub != "UNKNOWN":
                         sub_type = detected_sub
                 else:
-                    doc = extract_pdf_document(stored_path)
+                    doc = extract_pdf_document(stored_path, max_pages=2)
                     meta = extract_document_metadata(doc)
                     if meta.get("account_type"):
                         sub_type = meta["account_type"]
@@ -553,15 +553,17 @@ def analyse_report(
             is_stats = bool(detail.get("is_filing_statistics"))
             if txns or is_stats:
                 f.file_status = FileStatus.PROCESSED
-                auth_res = check_document_authenticity(
-                    f.stored_path,
-                    parsed_transactions=txns,
-                    meta=detail,
-                    is_password_protected=f.password_protected,
-                    owner_restricted=f.owner_restricted,
-                )
-                f.authenticity = auth_res["status"]
-                f.authenticity_reasons = auth_res["reasons"]
+                auth_res = detail.get("authenticity")
+                if not auth_res:
+                    auth_res = check_document_authenticity(
+                        f.stored_path,
+                        parsed_transactions=txns,
+                        meta=detail,
+                        is_password_protected=f.password_protected,
+                        owner_restricted=f.owner_restricted,
+                    )
+                f.authenticity = auth_res.get("status", "Original")
+                f.authenticity_reasons = auth_res.get("reasons", [])
                 detail["authenticity"] = auth_res
                 summary["authenticity"] = auth_res
                 if "analytics" in summary and isinstance(summary["analytics"], dict):
@@ -617,7 +619,12 @@ def analyse_report(
         db.commit()
 
         set_report_progress(report.id, 0, 1, f"Analysis failed: {str(e)}", stage="error")
-        raise
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Analysis failed: {str(e)}"
+        )
 
 
 @router.get("/{report_id}/progress")

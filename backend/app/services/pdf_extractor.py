@@ -223,6 +223,8 @@ def _reconstruct_lines_from_words(words: list[dict], page_height: float, y_toler
     sorted_words = sorted(words, key=lambda w: (w["top"], w["x0"]))
 
     lines_raw: list[list[dict]] = []
+    line_meta: list[dict] = []  # Running metadata per line: sum_top, sum_bottom, count
+
     for word in sorted_words:
         # Filter out empty or whitespace words
         t = word.get("text", "").strip()
@@ -230,24 +232,38 @@ def _reconstruct_lines_from_words(words: list[dict], page_height: float, y_toler
             continue
 
         placed = False
-        w_top = word["top"]
-        w_bottom = word["bottom"]
+        w_top = float(word["top"])
+        w_bottom = float(word["bottom"])
         w_mid = (w_top + w_bottom) / 2.0
 
-        for line_group in lines_raw:
-            # Check if word aligns vertically with this line's average position
-            avg_top = sum(w["top"] for w in line_group) / len(line_group)
-            avg_bottom = sum(w["bottom"] for w in line_group) / len(line_group)
+        # Since sorted_words is sorted by top, matching lines are almost always
+        # at the very end of lines_raw. Check recent lines first (last 10).
+        num_lines = len(lines_raw)
+        search_start = max(0, num_lines - 10)
+
+        for i in range(num_lines - 1, search_start - 1, -1):
+            meta = line_meta[i]
+            cnt = meta["count"]
+            avg_top = meta["sum_top"] / cnt
+            avg_bottom = meta["sum_bottom"] / cnt
             avg_mid = (avg_top + avg_bottom) / 2.0
 
             # Tolerant vertical overlap check
             if abs(w_mid - avg_mid) <= y_tolerance or (w_top >= avg_top - y_tolerance and w_bottom <= avg_bottom + y_tolerance):
-                line_group.append(word)
+                lines_raw[i].append(word)
+                meta["sum_top"] += w_top
+                meta["sum_bottom"] += w_bottom
+                meta["count"] += 1
                 placed = True
                 break
 
         if not placed:
             lines_raw.append([word])
+            line_meta.append({
+                "sum_top": w_top,
+                "sum_bottom": w_bottom,
+                "count": 1,
+            })
 
     # Sort lines by their average vertical top position
     lines_raw.sort(key=lambda group: sum(w["top"] for w in group) / len(group))
@@ -658,11 +674,17 @@ def extract_document_metadata(doc: ExtractedDocument) -> dict:
                         val_line = colon_lines[c_idx]
                         val = re.sub(r"^:\s*", "", val_line).strip()
                         orig_pos = all_candidate_lines.index(val_line)
-                        if orig_pos + 1 < len(all_candidate_lines):
-                            nxt = all_candidate_lines[orig_pos + 1].strip()
-                            if nxt and not nxt.startswith(":") and re.match(r"^[A-Za-z\s\.]+$", nxt):
-                                val = f"{val} {nxt}"
-                        holder = val
+                        pos = orig_pos + 1
+                        while pos < len(all_candidate_lines):
+                            nxt = all_candidate_lines[pos].strip()
+                            if not nxt or nxt.startswith(":") or any(kw in nxt.lower() for kw in ("contact", "email", "ifs", "branch", "account", "customer")):
+                                break
+                            if re.match(r"^[A-Za-z\s\.]+$", nxt):
+                                val = f"{val} {nxt}".strip()
+                            else:
+                                break
+                            pos += 1
+                        holder = val.strip()
                 else:
                     # Standard inline name
                     holder = cleaned
@@ -804,7 +826,7 @@ def extract_document_metadata(doc: ExtractedDocument) -> dict:
             v = ' '.join(w.text for w in val_words).strip()
             if not meta["account_holder"]:
                 if not re.search(r"Account|Holder|Name|Contact|Email|IFS|Branch|NAGAPATTINAM|TAMIL NADU|S/O", v, re.I):
-                    meta["account_holder"] = v
+                    meta["account_holder"] = v.strip()
             break
 
     # Fallback for account holder: Check lines immediately following STATEMENT OF ACCOUNT

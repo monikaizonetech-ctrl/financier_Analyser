@@ -2909,16 +2909,16 @@ def run_analysis(
         except TypeError:
             res = analyser(fp, fname)
 
-        if fp.lower().endswith(".pdf"):
+        if fp.lower().endswith(".pdf") and (not isinstance(res, dict) or not res.get("authenticity")):
             try:
                 from app.services.authenticity_service import check_document_authenticity
                 auth_res = check_document_authenticity(
                     fp,
-                    parsed_transactions=res.get("transactions", []),
-                    meta=res,
+                    parsed_transactions=res.get("transactions", []) if isinstance(res, dict) else [],
+                    meta=res if isinstance(res, dict) else {},
                     is_password_protected=bool(file_passwords.get(fname))
                 )
-                if auth_res:
+                if auth_res and isinstance(res, dict):
                     res["authenticity"] = auth_res
             except Exception:
                 pass

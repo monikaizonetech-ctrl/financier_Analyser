@@ -1,4 +1,5 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
@@ -65,6 +66,23 @@ except Exception:
 
 
 app = FastAPI(title=settings.PROJECT_NAME, version="1.0.0")
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import logging
+    logging.exception(f"Unhandled exception during request {request.method} {request.url}: {exc}")
+    origin = request.headers.get("origin")
+    headers = {}
+    if origin:
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"An unexpected server error occurred: {str(exc)}"},
+        headers=headers,
+    )
+
 
 app.add_middleware(
     CORSMiddleware,

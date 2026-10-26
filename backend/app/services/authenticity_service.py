@@ -169,13 +169,14 @@ def check_document_authenticity(
         except Exception:
             pass
 
-        # Text layer & scanned document check
+        # Text layer & scanned document check (sample up to 10 pages for speed)
         total_text_len = 0
         total_pages = len(doc)
         if total_pages > 0:
-            for p in doc:
-                total_text_len += len(p.get_text().strip())
-            avg_text_per_page = total_text_len / total_pages
+            sample_pages = min(total_pages, 10)
+            for i in range(sample_pages):
+                total_text_len += len(doc[i].get_text().strip())
+            avg_text_per_page = total_text_len / sample_pages
             if total_text_len == 0 or avg_text_per_page < 15:
                 is_scanned = True
                 unverifiable_reasons.append("Scanned PDF with no extractable text layer")

@@ -673,6 +673,14 @@ def _parse_pdf_transactions(file_path: str, file_name: str, password: str | None
             r["statement_summary"] = statement_summary
         if statement_period:
             r["statement_period"] = statement_period
+
+    # Explicitly clear internal extraction structures to free memory immediately
+    try:
+        doc.pages.clear()
+        del doc
+    except Exception:
+        pass
+
     return rows
 
 

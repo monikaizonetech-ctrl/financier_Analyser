@@ -8,6 +8,13 @@ _report_progress: dict[str, dict] = {}
 def set_report_progress(report_id: str, current: int, total: int, message: str, stage: str = "processing"):
     """Thread-safe update of progress state for a report."""
     with _progress_lock:
+        # Prevent unbounded dictionary growth in long-running backend processes
+        if len(_report_progress) > 500:
+            # Drop the oldest 100 entries
+            oldest_keys = list(_report_progress.keys())[:100]
+            for k in oldest_keys:
+                _report_progress.pop(k, None)
+
         percent = int((current / total * 100)) if total > 0 else 0
         percent = min(max(percent, 0), 100)
         _report_progress[report_id] = {

@@ -306,15 +306,24 @@ def upload_report_file(
     report = _get_owned_report(report_id, current_user, db)
 
     max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
-    contents = file.file.read()
-    if len(contents) > max_bytes:
-        raise HTTPException(status_code=413, detail=f"File exceeds {settings.MAX_UPLOAD_SIZE_MB}MB limit")
-
     report_dir = os.path.join(settings.UPLOAD_DIR, report.id)
     os.makedirs(report_dir, exist_ok=True)
     stored_path = os.path.join(report_dir, file.filename)
+
+    # Stream file to disk in 64KB chunks to avoid reading entire file into RAM
+    total_bytes = 0
     with open(stored_path, "wb") as f:
-        f.write(contents)
+        while True:
+            chunk = file.file.read(65536)
+            if not chunk:
+                break
+            total_bytes += len(chunk)
+            if total_bytes > max_bytes:
+                f.close()
+                if os.path.exists(stored_path):
+                    os.remove(stored_path)
+                raise HTTPException(status_code=413, detail=f"File exceeds {settings.MAX_UPLOAD_SIZE_MB}MB limit")
+            f.write(chunk)
 
     is_pdf = file.filename.lower().endswith(".pdf")
     owner_restricted = False

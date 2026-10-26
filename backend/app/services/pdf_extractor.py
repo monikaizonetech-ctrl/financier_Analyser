@@ -407,7 +407,14 @@ def extract_pdf_document(
                 _classify_page_lines(extracted_page, page_num, pages_to_process)
                 doc.pages.append(extracted_page)
 
-            doc.raw_debug_text = "\n\n".join(debug_text_chunks)
+                # Free pdfplumber internal geometries, character caches and font maps
+                try:
+                    page.flush_cache()
+                except Exception:
+                    pass
+
+            # Only retain debug text preview for the initial pages to avoid massive string buffers
+            doc.raw_debug_text = "\n\n".join(debug_text_chunks[:20])
 
             # Check if PDF appears to be a scanned document (insufficient selectable text)
             avg_chars_per_page = total_chars / max(1, pages_to_process)

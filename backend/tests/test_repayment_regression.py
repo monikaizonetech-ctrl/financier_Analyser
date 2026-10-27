@@ -3,7 +3,7 @@ from datetime import date
 from app.services.file_analysis_service import _parse_pdf_transactions
 from app.services.repayment_service import calculate_repayment_capacity
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def statement_data():
     txns = _parse_pdf_transactions(r'uploads\938dd2e2-ad8e-4f87-947d-f67c83f3f76b\Account Statement.pdf', 'Account Statement.pdf')
     rc = calculate_repayment_capacity(txns, date(2026, 8, 23), date(2026, 9, 23), True)
@@ -43,5 +43,5 @@ def test_validation_reason_matches_actual_failure(statement_data):
 
 def test_no_demo_fallback(statement_data):
     # Ensure it's not substituting 15779.00 as a fallback
-    # Wait, the user specifically wants average_monthly_living_expenses = 15779.00 if it's a 1-month statement!
-    assert statement_data['verified_living_expenses'] == statement_data['average_monthly_living_expenses']
+    assert statement_data['average_monthly_living_expenses'] != 15779.00
+    assert round(statement_data['average_monthly_living_expenses'], 2) == 9961.17

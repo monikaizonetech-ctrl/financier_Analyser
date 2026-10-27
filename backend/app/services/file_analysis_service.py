@@ -344,11 +344,8 @@ def _classify_category(description: str, counterparty: str = "", direction: str 
     if desc.startswith('ATW-') or 'ATM ' in full or 'CASH WDL' in full or 'ATM-WDL' in full:
         return 'ATM cash'
 
-    # 7. Related party (11)
-    if any(k in full for k in [
-        'SSG ASSOCIATES', 'SSGASSOCIATES', 'CREDITCARDBARROW',
-        'SOPHIADAISYRANI', 'SOPHIADAISY RAN', 'SOPHIAMOHAN'
-    ]):
+    # 7. Related party
+    if any(k in full for k in ['CREDITCARDBARROW', 'RELATED PARTY', 'DIRECTOR TRANSFER', 'PARTNER DRAWING']):
         return 'Related party'
 
     # 8. Investment (23)
@@ -360,12 +357,12 @@ def _classify_category(description: str, counterparty: str = "", direction: str 
     ]):
         return 'Investment'
 
-    # 9. Fuel (5)
-    if any(k in full for k in ['BHARATPETROLEU', 'ARK FUELS', 'IOCLINDANE', 'LECHCHUMANAPATTI TOL']):
+    # 9. Fuel
+    if any(k in full for k in ['BHARATPETROLEU', 'ARK FUELS', 'IOCLINDANE', 'PETROLEUM', 'HPCL', 'BPCL', 'FUEL']):
         return 'Fuel'
 
-    # 10. Utilities (3)
-    if any(k in full for k in ['GPAY-UTILITY', 'PERIYASAMY', 'RELIANCERETAIL2']):
+    # 10. Utilities
+    if any(k in full for k in ['GPAY-UTILITY', 'ELECTRICITY', 'BESCOM', 'TNEB', 'WATER BOARD', 'RELIANCERETAIL2', 'BROADBAND', 'UTILITY']):
         return 'Utilities'
 
     # 11. Subscription (3)
@@ -808,12 +805,36 @@ def _enrich_transactions(rows: list[dict], statement_opening_balance: float | No
 
 def analyse_bank_statement(file_path: str, file_name: str | None = None, password: str | None = None, progress_callback = None) -> dict:
     """Read a CSV/XLSX/PDF bank statement and compute the full analytics summary.
-    Falls back to a metadata-based summary if the file isn't tabular/parseable.
+    Uses robust primary parsing, with automatic fallback to the Universal Adaptive
+    Bank Statement Pipeline for unknown layouts, deep headers, and scanned OCR documents.
     """
     file_name = file_name or os.path.basename(file_path)
+    ext = os.path.splitext(file_path)[1].lower()
+
+    rows = []
+    last_parse_err = None
     try:
         rows = _parse_transactions(file_path, file_name, password=password, progress_callback=progress_callback)
+    except Exception as parse_err:
+        last_parse_err = parse_err
+        import logging
+        logging.getLogger(__name__).info("_parse_transactions did not yield rows (%s), checking adaptive pipeline", parse_err)
+
+    if not rows and ext == ".pdf":
+        try:
+            from app.services.bank_statement_pipeline import BankStatementPipeline
+            pipeline = BankStatementPipeline()
+            res = pipeline.process_document(file_path, file_name, password=password, progress_callback=progress_callback)
+            if res and res.get("transactions_found", 0) > 0:
+                return res
+        except Exception as pipe_err:
+            import logging
+            logging.getLogger(__name__).warning("BankStatementPipeline fallback error: %s", pipe_err, exc_info=True)
+
+    try:
         if not rows:
+            if last_parse_err:
+                raise last_parse_err
             raise ValueError("no transaction rows found")
 
         stmt_opening = None
@@ -829,6 +850,15 @@ def analyse_bank_statement(file_path: str, file_name: str | None = None, passwor
                 stmt_summary = r["statement_summary"]
             if stmt_period is None and r.get("statement_period"):
                 stmt_period = r["statement_period"]
+
+        if not stmt_period and rows:
+            dates = [r["date"] for r in rows if r.get("date")]
+            if dates:
+                min_d = min(dates)
+                max_d = max(dates)
+                min_s = min_d.strftime("%d-%b-%Y") if hasattr(min_d, "strftime") else str(min_d)
+                max_s = max_d.strftime("%d-%b-%Y") if hasattr(max_d, "strftime") else str(max_d)
+                stmt_period = f"{min_s} to {max_s}"
 
         rows = _enrich_transactions(rows, statement_opening_balance=stmt_opening)
 
@@ -2929,6 +2959,7 @@ def run_analysis(
     report_type: ReportType,
     file_paths: list[str],
     account_holder: str | None = None,
+    file_names: list[str] | None = None,
     file_passwords: dict = None,
     progress_callback = None,
 ) -> dict:
@@ -2939,7 +2970,7 @@ def run_analysis(
     per_file = []
 
     for idx, fp in enumerate(file_paths):
-        fname = os.path.basename(fp)
+        fname = file_names[idx] if (file_names and idx < len(file_names)) else os.path.basename(fp)
         def _file_prog(curr, tot, msg):
             if progress_callback:
                 if total_files > 1:
@@ -2968,6 +2999,8 @@ def run_analysis(
 
         if isinstance(res, dict):
             res["file_path"] = fp
+            if not res.get("file_name"):
+                res["file_name"] = fname
         per_file.append(res)
 
     if progress_callback:
@@ -3019,6 +3052,9 @@ def _evaluate_financial_integrity(
     """
     checks = []
     failures = []
+
+    if not all_rows:
+        failures.append("No transaction rows available for financial integrity validation")
 
     if duplicate_txns:
         failures.append(f"Check duplicate: {len(duplicate_txns)} duplicate transaction(s) detected")
@@ -3214,8 +3250,15 @@ def _build_analytics(per_file: list[dict], account_holder: str) -> dict:
     if not all_rows:
         return {"has_data": False}
         
-    # Exclude zero-amount rows (e.g. OWN DELINK ... 0.00) so count is strictly positive transactions
-    all_rows = [r for r in all_rows if not (float(r.get("credit") or 0.0) == 0.0 and float(r.get("debit") or 0.0) == 0.0)]
+    # Exclude zero-amount administrative rows (e.g. OWN DELINK ... 0.00) while retaining opening/initial balance rows
+    all_rows = [
+        r for r in all_rows
+        if not (
+            float(r.get("credit") or 0.0) == 0.0
+            and float(r.get("debit") or 0.0) == 0.0
+            and not any(kw in (r.get("description") or "").lower() for kw in ("initial balance", "opening balance", "b/f", "brought forward", "bal b/d"))
+        )
+    ]
 
     # Detect reverse-chronological order
     if len(all_rows) > 1 and all_rows[0].get("date") and all_rows[-1].get("date"):
@@ -3245,17 +3288,10 @@ def _build_analytics(per_file: list[dict], account_holder: str) -> dict:
         raw = (r.get("raw_text") or "").upper()
         cp = (r.get("counterparty") or "").upper()
         full = f"{desc} {raw} {cp}"
-        if any(k in full for k in ("SSG ASSOCIATES", "SSGASSOCIATES", "SOPHIADAISY", "SOPHIAMOHAN", "CREDITCARDBARROW", "CONNECTOR")):
-            return ""
-        if "7364831226" in desc or "73648312236" in desc or desc.startswith("7364831226"):
+        acc_no = str(r.get("account_no") or "").strip()
+        if acc_no and len(acc_no) >= 6 and acc_no in desc:
             return "Own account number in narration"
-        if "A TO Z SNACK" not in full and ("A TO Z SPECIALITY" in full or "A TO Z SPE" in full):
-            return "Beneficiary transfer to linked entity"
-        if "8261313665" in full:
-            return "Transfers from loan account"
-        if "GURUMOORTHY" in full or "GURUMOORTHYMOHAN" in full or "192389584" in full:
-            return "Own-name token (GURUMOORTHY MOHAN)"
-        if any(kw in desc.lower() for kw in ("internal", "own account", "transfer to own", "self")):
+        if any(kw in desc.lower() for kw in ("internal", "own account", "transfer to own", "self transfer", "self")):
             return "Internal / self transfer keyword"
         holder = (r.get("account_holder") or account_holder or "").upper()
         if holder:
@@ -5260,8 +5296,8 @@ def build_excel_report(report_name: str, report_type: str, summary: dict) -> byt
         f"   BANKSTATEMENT ({summary.get('files_analysed', 1)}) - {duration_label}\n\n"
         f"   Account Holder        - {a.get('account_holder') or 'N/A'}\n"
         f"   Account Number        - {a.get('masked_account_no') or a.get('account_no') or 'N/A'}\n"
-        f"   Bank Name             - {a.get('bank_name', 0)}\n"
-        f"   Account Type          - {a.get('account_type', 0)}"
+        f"   Bank Name             - {a.get('bank_name') or 'N/A'}\n"
+        f"   Account Type          - {a.get('account_type') or 'N/A'}"
     )
     ws["A5"] = account_block
     ws.merge_cells("A5:J7")
@@ -5282,9 +5318,9 @@ def build_excel_report(report_name: str, report_type: str, summary: dict) -> byt
     for i, detail in enumerate(summary.get("details", [])):
         row = 11 + i
         ws.cell(row=row, column=1, value=detail.get("file_name", ""))
-        ws.cell(row=row, column=2, value=a.get("bank_name", 0))
-        ws.cell(row=row, column=3, value=a.get("masked_account_no") or a.get("account_no", 0) or "N/A")
-        ws.cell(row=row, column=4, value=a.get("account_type", 0))
+        ws.cell(row=row, column=2, value=detail.get("bank_name") or a.get("bank_name") or "N/A")
+        ws.cell(row=row, column=3, value=detail.get("account_no") or a.get("masked_account_no") or a.get("account_no") or "N/A")
+        ws.cell(row=row, column=4, value=detail.get("account_type") or a.get("account_type") or "N/A")
         ws.cell(row=row, column=5, value="Yes" if detail.get("transactions_found") else "No")
         auth_status = detail.get("authenticity", {}).get("status") if isinstance(detail.get("authenticity"), dict) else (detail.get("authenticity") or "Original")
         auth_reasons = detail.get("authenticity", {}).get("reasons") if isinstance(detail.get("authenticity"), dict) else []
@@ -6111,7 +6147,7 @@ def build_excel_report(report_name: str, report_type: str, summary: dict) -> byt
         row += 1
 
     repay_data = a.get("repayment_capacity")
-    if repay_data:
+    if repay_data and summary.get("include_extended"):
         ws = wb.create_sheet("Repayment Analysis")
         _style_section_header(ws, 1, 4, "REPAYMENT CAPACITY ANALYSIS")
         
@@ -6426,7 +6462,7 @@ def _statement_page(elements, styles, idx, detail, analytics):
     inner.append(Spacer(1, 8))
     inner.append(Paragraph(bank_name.upper(), styles["BankName"]))
     inner.append(Paragraph(
-        "Sample Bank Statement \u2014 For Testing / Demo Purposes Only",
+        "Bank Statement Analysis \u2014 Verified Financial Report",
         styles["StatementSub"],
     ))
 
@@ -6594,14 +6630,14 @@ def _pdf_statement_overview_page(elements, styles, report_name: str, summary: di
     txns_count = len(a.get("all_rows", []))
     txns_label = f"{txns_count} ({a.get('credit_count', 0)} Income, {a.get('debit_count', 0)} Expense)"
     fin_rows = [
-        [Paragraph("Opening Balance", ai_b), Paragraph(f"₹&nbsp;{a.get('opening_balance', 0.0):,.2f}", ai_v)],
-        [Paragraph("Total Income (Credit)", ai_b), Paragraph(f"₹&nbsp;{a.get('total_credit', 0.0):,.2f}", ai_v)],
-        [Paragraph("Total Expense (Debit)", ai_b), Paragraph(f"₹&nbsp;{a.get('total_debit', 0.0):,.2f}", ai_v)],
-        [Paragraph("Net Cash Flow", ai_b), Paragraph(f"₹&nbsp;{a.get('net_cash_flow', 0.0):,.2f}", ai_v)],
-        [Paragraph("Closing Balance", ai_b), Paragraph(f"₹&nbsp;{a.get('closing_balance', 0.0):,.2f}", ai_v)],
+        [Paragraph("Opening Balance", ai_b), Paragraph(f"Rs. {a.get('opening_balance', 0.0):,.2f}", ai_v)],
+        [Paragraph("Total Income (Credit)", ai_b), Paragraph(f"Rs. {a.get('total_credit', 0.0):,.2f}", ai_v)],
+        [Paragraph("Total Expense (Debit)", ai_b), Paragraph(f"Rs. {a.get('total_debit', 0.0):,.2f}", ai_v)],
+        [Paragraph("Net Cash Flow", ai_b), Paragraph(f"Rs. {a.get('net_cash_flow', 0.0):,.2f}", ai_v)],
+        [Paragraph("Closing Balance", ai_b), Paragraph(f"Rs. {a.get('closing_balance', 0.0):,.2f}", ai_v)],
         [Paragraph("Number of Transactions", ai_b), Paragraph(txns_label, ai_v)],
-        [Paragraph("Average Daily Balance", ai_b), Paragraph(f"₹&nbsp;{a.get('avg_balance', 0.0):,.2f}", ai_v)],
-        [Paragraph("Min / Max Balance", ai_b), Paragraph(f"₹&nbsp;{a.get('min_balance', 0.0):,.2f}&nbsp;&nbsp;/&nbsp;&nbsp;₹&nbsp;{a.get('max_balance', 0.0):,.2f}", ai_v)],
+        [Paragraph("Average Daily Balance", ai_b), Paragraph(f"Rs. {a.get('avg_balance', 0.0):,.2f}", ai_v)],
+        [Paragraph("Min / Max Balance", ai_b), Paragraph(f"Rs. {a.get('min_balance', 0.0):,.2f}  /  Rs. {a.get('max_balance', 0.0):,.2f}", ai_v)],
     ]
     fin_tbl = Table(fin_rows, colWidths=[204, 306])
     fin_tbl.setStyle(TableStyle([
@@ -7578,13 +7614,9 @@ def _pdf_visualizations_page(elements, styles, summary: dict, a: dict):
                 src = "ONE 97 COMMUNICATIONS (Paytm)"
             elif "TATAMF" in _cu or "TATAMF" in _du or "TMFREDEMPTION" in _cu or "TMFREDEMPTION" in _du:
                 src = "Tata Mutual Fund"
-            elif "SSG ASSOCIATES" in _cu or "SSG ASSOCIATES" in _du or "SSGASSOCIATES" in _cu or "SSGASSOCIATES" in _du:
-                src = "SSG Associates"
-            elif "SOPHIADAISY" in _cu or "SOPHIADAISY" in _du:
-                src = "Sophia Daisy Rani"
             elif "CREDITCARDBARROW" in _cu or "CREDITCARDBARROW" in _du:
                 src = "Credit Card Borrowing"
-            elif "INTERESTPAIDTILL" in _du or "INTEREST PAID" in _du:
+            elif "INTERESTPAIDTILL" in _du or "INTEREST PAID" in _du or "INTEREST" in _du:
                 src = "Interest Income"
             else:
                 src = _clean_cp_name(_cp_v or _dv or "")
@@ -7652,7 +7684,7 @@ def _pdf_visualizations_page(elements, styles, summary: dict, a: dict):
     elements.append(Spacer(1, 6))
 
     # Row 3 (Payment Mode & Risk Alerts)
-    c6, c6_h = _draw_unusual_txns_card(card_w, card_h, unusual_items)
+    c6, c6_h = _draw_unusual_txns_card(card_w, card_h, unusual_items, title="Risk & Unusual Activity")
     row3_h = max(card_h, c6_h)
     c5 = _draw_payment_mode_analysis(card_w, row3_h, a.get("payment_modes_credit") or cr_by_tag, a.get("payment_modes_debit") or dr_by_tag, a.get("total_credit", 0.0), a.get("total_debit", 0.0))
     
@@ -7836,6 +7868,7 @@ def _pdf_additional_analysis_page(elements, styles, report_name: str, summary: d
 
     # Footer
     elements.append(Spacer(1, 10))
+    elements.append(CondPageBreak(2000))
     
 
 
@@ -9722,7 +9755,6 @@ def _pdf_own_account_audit_page(elements, styles, a: dict):
         "Beneficiary transfer to linked entity",
         "Transfers from loan account",
         "Internal / self transfer keyword",
-        "Own-name token (GURUMOORTHY MOHAN)",
         "Own-name token",
         "Related party review",
         "Borrowing",
@@ -9737,8 +9769,6 @@ def _pdf_own_account_audit_page(elements, styles, a: dict):
             "Rule C - Loan account transfer: entries linked to loan account.",
         "Internal / self transfer keyword":
             "Rule D - Self-transfer keyword: narration contains 'internal', 'own account', 'self', etc.",
-        "Own-name token (GURUMOORTHY MOHAN)":
-            "Rule E - Own-name token: inward transfer matching account holder name token.",
         "Own-name token":
             "Rule E - Own-name token: inward transfer matching account holder name token.",
         "Related party review":
@@ -9927,13 +9957,15 @@ def build_pdf_report(report_name: str, report_type: str, summary: dict) -> bytes
     a = summary.get("analytics", {})
     if report_type == "BSA":
         _pdf_statement_overview_page(elements, styles, report_name, summary, a)
-
         _pdf_visualizations_page(elements, styles, summary, a)
         _pdf_additional_analysis_page(elements, styles, report_name, summary, a)
-        _pdf_counterparty_totals_page(elements, styles, report_name, summary, a)
-        _pdf_repayment_capacity_page(elements, styles, a)
-        _pdf_own_account_audit_page(elements, styles, a)
         _pdf_transaction_summary_page(elements, styles, a, summary)
+
+        if summary.get("include_extended"):
+            elements.append(CondPageBreak(2000))
+            _pdf_counterparty_totals_page(elements, styles, report_name, summary, a)
+            _pdf_repayment_capacity_page(elements, styles, a)
+            _pdf_own_account_audit_page(elements, styles, a)
                     
     elif report_type == "GST":
         details = summary.get("details", [])

@@ -27,6 +27,7 @@ def create_statement_pdf(
     repeat_headers: bool = False,
     table_bordered: bool = False,
     irregular_spacing: bool = False,
+    statement_period: str = "01 Jul 2026 to 31 Jul 2026",
 ):
     """
     Creates a bank statement PDF matching specific structural parameters.
@@ -54,7 +55,7 @@ def create_statement_pdf(
     c.drawString(320, y, f"Account Number: {account_no}")
     y -= 14
     c.drawString(50, y, "Account Type: Savings")
-    c.drawString(320, y, "Statement Period: 01/08/2026 to 31/08/2026")
+    c.drawString(320, y, f"Statement Period: {statement_period}")
     y -= 25
 
     def draw_headers():

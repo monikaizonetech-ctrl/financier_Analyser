@@ -12,6 +12,10 @@ def gen_uuid() -> str:
     return str(uuid.uuid4())
 
 
+def gen_ref_id() -> str:
+    return f"REF_{uuid.uuid4().hex[:8]}"
+
+
 class ReportType(str, enum.Enum):
     BSA = "BSA"   # Bank Statement Analyser
     GST = "GST"   # GST Analyser
@@ -53,7 +57,7 @@ class Report(Base):
     __tablename__ = "reports"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
-    reference_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    reference_id: Mapped[str] = mapped_column(String(64), nullable=False, default=gen_ref_id)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     report_type: Mapped[ReportType] = mapped_column(Enum(ReportType), nullable=False)
     status: Mapped[ReportStatus] = mapped_column(Enum(ReportStatus), default=ReportStatus.NEED_TO_ANALYSE)

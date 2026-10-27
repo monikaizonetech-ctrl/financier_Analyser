@@ -29,7 +29,7 @@ class TestKSquareStatementValidation(unittest.TestCase):
         self.assertEqual(len(doc.pages), 34)
 
         meta = extract_document_metadata(doc)
-        self.assertEqual(meta["bank_name"], "ICICI BANK")
+        self.assertEqual(meta["bank_name"], "KARUR VYSYA BANK")
         self.assertEqual(meta["account_holder"], "K SQUARE CONSTRUCTIONS")
         self.assertEqual(meta["account_no"], "769105000299")
 

@@ -394,7 +394,7 @@ def calculate_repayment_capacity(
         final_income = total_verified_income
         final_m_inc = round((final_income / duration_days) * 30, 2) if duration_days > 0 and final_income > 0 else 0.0
         final_exp = total_living_expenses
-        final_m_exp = round((final_exp / duration_days) * 30, 2) if duration_days > 0 else 0.0
+        final_m_exp = final_exp if (28 <= duration_days <= 32) else (round((final_exp / duration_days) * 30, 2) if duration_days > 0 else 0.0)
         final_net = round(final_m_inc - exist_emi_val - final_m_exp, 2)
         final_max_total_ob = round(final_m_inc * max_foir, 2)
         final_foir_based = round(final_max_total_ob - exist_emi_val, 2)
@@ -405,7 +405,7 @@ def calculate_repayment_capacity(
     existing_emi = round(exist_emi_val, 2) if exist_emi_val > 0 else None
     average_monthly_living_expenses = final_m_exp
     net_disposable_income = final_net
-    current_foir = round((exist_emi_val / (final_m_inc or 1.0)) * 100, 2) if final_m_inc > 0 else 0.0
+    current_foir = round((exist_emi_val / (final_m_inc or 1.0)) * 100, 2) if (final_m_inc > 0 and existing_emi is not None) else None
     max_total_obligation = round(final_max_total_ob, 2)
     foir_based_additional_emi = round(final_foir_based, 2)
     maximum_additional_emi = final_max_emi

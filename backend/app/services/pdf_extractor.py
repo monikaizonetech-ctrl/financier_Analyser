@@ -141,7 +141,7 @@ _FOOTER_PATTERNS = [
     r"the\s*address\s*on\s*this\s*statement\s*is\s*that\s*on\s*record",
     r"state\s*account\s*branch\s*gstn",
     r"registered\s*office\s*address",
-    r"this\s*is\s*a\s*computer[\s-]generated\s*statement",
+    r"this\s*is\s*a\s*computer[\s-]generated\s*(?:statement|report)",
     r"statement\s*summary\s*:-?",
     r"opening\s*balance\s+dr\s*count\s+cr\s*count",
     r"openingbalance\s+drcount\s+crcount",
@@ -150,6 +150,15 @@ _FOOTER_PATTERNS = [
     r"^this\s*statement\.?",
     r"^thisstatement\.?",
     r"daysofrequesting",
+    r"does\s*not\s*require\s*(?:a\s*)?signature",
+    r"statements\s*are\s*sent\s*to\s*customers\s*only",
+    r"unless\s*the\s*constituent\s*notifies",
+    r"as\s*a\s*policy,?\s*kvb\s*does\s*not\s*ask",
+    r"kvb\s*shall\s*not\s*be\s*liable",
+    r"eservice@kvb\.bank\.in",
+    r"home\s*branch\s*:",
+    r"address\s*:\s*[a-z0-9]",
+    r"\*+acronyms\*+",
 ]
 
 _METADATA_HEADER_PATTERNS = [
@@ -545,6 +554,7 @@ def _classify_page_lines(page: ExtractedPage, page_num: int, total_pages: int):
 
 
 _IFSC_BANK_MAP = {
+    "KVBL": "KARUR VYSYA BANK",
     "IOBA": "INDIAN OVERSEAS BANK",
     "IDIB": "INDIAN BANK",
     "SBIN": "STATE BANK OF INDIA",
@@ -562,6 +572,14 @@ _IFSC_BANK_MAP = {
     "MAHB": "BANK OF MAHARASHTRA",
     "PSIB": "PUNJAB & SIND BANK",
     "UCOB": "UCO BANK",
+    "IDFB": "IDFC FIRST BANK",
+    "FDRL": "FEDERAL BANK",
+    "INDB": "INDUSIND BANK",
+    "TMBL": "TAMILNAD MERCANTILE BANK",
+    "CSBK": "CSB BANK",
+    "SIBL": "SOUTH INDIAN BANK",
+    "BDBL": "BANDHAN BANK",
+    "AUBL": "AU SMALL FINANCE BANK",
 }
 
 
@@ -584,14 +602,34 @@ def extract_document_metadata(doc: ExtractedDocument) -> dict:
 
     p1 = doc.pages[0]
 
-    # 0. Check for specific statement header patterns (e.g., ICICI Corporate / Detailed Statement)
+    # Email domain check in header/footer across first & last pages
+    sample_text = "\n".join(l.text for p in (doc.pages[:2] + [doc.pages[-1]]) for l in (p.header_lines + p.footer_lines))
+    if re.search(r"@kvb\.bank\.in|\bkvb\.co\.in\b", sample_text, re.I):
+        meta["bank_name"] = "KARUR VYSYA BANK"
+    elif re.search(r"@hdfcbank\.com\b", sample_text, re.I):
+        meta["bank_name"] = "HDFC BANK"
+    elif re.search(r"@icicibank\.com\b", sample_text, re.I):
+        meta["bank_name"] = "ICICI BANK"
+    elif re.search(r"@axisbank\.com\b", sample_text, re.I):
+        meta["bank_name"] = "AXIS BANK"
+    elif re.search(r"@sbi\.co\.in\b", sample_text, re.I):
+        meta["bank_name"] = "STATE BANK OF INDIA"
+
+    # 0. Check for specific statement header patterns (e.g., KVB / ICICI Corporate / Detailed Statement)
     for line in (p1.header_lines + p1.lines[:15]):
         t = line.text.strip()
         m = re.search(r"Transactions\s+List\s*-\s*-?\s*([^(]+?)\s*\((?:INR|[A-Z]{3})\)\s*-\s*([0-9X]+)", t, re.IGNORECASE)
         if m:
             meta["account_holder"] = m.group(1).strip(" -")
             meta["account_no"] = m.group(2).strip()
-            meta["bank_name"] = "ICICI BANK"
+            # Determine bank dynamically
+            full_evidence = " ".join(l.text for p in doc.pages for l in (p.header_lines + p.footer_lines + p.lines[:3]))
+            if re.search(r"\bKVBL[A-Z0-9]*\b|\bKVB\b|\bkarur\s+vysya\b", full_evidence, re.IGNORECASE):
+                meta["bank_name"] = "KARUR VYSYA BANK"
+            elif re.search(r"\bICIC[A-Z0-9]*\b|\bcib\.icici\b|\bicici\s+bank\b", full_evidence, re.IGNORECASE):
+                meta["bank_name"] = "ICICI BANK"
+            else:
+                meta["bank_name"] = "KARUR VYSYA BANK"
             meta["account_type"] = "Current"
             break
 
@@ -609,6 +647,7 @@ def extract_document_metadata(doc: ExtractedDocument) -> dict:
     # 2. If IFSC not found, scan header and footer lines across pages for known bank names
     if meta["bank_name"] == "BANK":
         known_banks = [
+            (r"\bkarur\s+vysya(?:\s+bank)?\b|\bkvb\b", "KARUR VYSYA BANK"),
             (r"\bindian\s+overseas\s+bank\b|\biob\b", "INDIAN OVERSEAS BANK"),
             (r"\bindian\s+bank\b", "INDIAN BANK"),
             (r"\bstate\s+bank\s+of\s+india\b|\bsbi\b", "STATE BANK OF INDIA"),
@@ -621,6 +660,10 @@ def extract_document_metadata(doc: ExtractedDocument) -> dict:
             (r"\bbank\s+of\s+baroda\b|\bbob\b", "BANK OF BARODA"),
             (r"\bpunjab\s+national\s+bank\b|\bpnb\b", "PUNJAB NATIONAL BANK"),
             (r"\bunion\s+bank\s+of\s+india\b", "UNION BANK OF INDIA"),
+            (r"\bidfc(?:\s+first)?(?:\s+bank)?\b", "IDFC FIRST BANK"),
+            (r"\bfederal\s+bank\b", "FEDERAL BANK"),
+            (r"\bindusind(?:\s+bank)?\b", "INDUSIND BANK"),
+            (r"\btamilnad\s+mercantile\s+bank\b|\btmb\b", "TAMILNAD MERCANTILE BANK"),
         ]
         bank_found = False
         for p in doc.pages:
@@ -637,24 +680,6 @@ def extract_document_metadata(doc: ExtractedDocument) -> dict:
             if bank_found:
                 break
 
-        # Fallback: scan lines not containing UPI or account masks
-        if not bank_found:
-            for p in doc.pages:
-                for line in p.lines:
-                    t = line.text.strip()
-                    lowered = t.lower()
-                    if "/upi" in lowered or "/xxxx" in lowered or "@" in lowered:
-                        continue
-                    for pattern, canonical_name in known_banks:
-                        if re.search(pattern, lowered):
-                            meta["bank_name"] = canonical_name
-                            bank_found = True
-                            break
-                    if bank_found:
-                        break
-                if bank_found:
-                    break
-
         # Look for Bank Name in top header lines of page 1 if not already found
         if meta["bank_name"] == "BANK":
             for line in p1.header_lines[:4]:
@@ -666,7 +691,7 @@ def extract_document_metadata(doc: ExtractedDocument) -> dict:
                         break
 
     # Look for account holder, account number, account type, balances across all header/metadata lines
-    all_candidate_lines = [l.text for l in p1.header_lines] + [l.text for l in p1.lines[:25]]
+    all_candidate_lines = [l.text for l in p1.header_lines] + [l.text for l in p1.lines]
     if p1.raw_tables:
         for tbl in p1.raw_tables[:2]:
             for r in tbl:
@@ -676,6 +701,15 @@ def extract_document_metadata(doc: ExtractedDocument) -> dict:
 
     for idx, text in enumerate(all_candidate_lines):
         lowered = text.lower()
+        if not meta["account_holder"]:
+            m_name_acc = re.search(r"^([A-Z\s\.]{3,50})\s+(?:Acc\.?\s*No\.?|Account\s*No\.?)\s*:\s*([0-9X]+)", text.strip(), re.IGNORECASE)
+            if m_name_acc:
+                cand = m_name_acc.group(1).strip()
+                if not re.search(r"STATEMENT|BALANCE|CUSTOMER|SUMMARY", cand, re.IGNORECASE):
+                    meta["account_holder"] = cand
+                if not meta["account_no"]:
+                    meta["account_no"] = m_name_acc.group(2).strip()
+
         if ("account holder" in lowered or "customer name" in lowered or "name of account holder" in lowered) and not meta["account_holder"]:
             holder = ""
             # Case 1: previous line starts with ':' (e.g. IOB format where value was wrapped/split across columns)
@@ -724,14 +758,15 @@ def extract_document_metadata(doc: ExtractedDocument) -> dict:
                         i += 1
                     holder = re.sub(r"^(?:name\s+)", "", holder, flags=re.IGNORECASE).strip()
                     holder = re.sub(r"\s+(?:S/O|D/O|W/O|C/O)\s+.*$", "", holder, flags=re.IGNORECASE).strip()
+                    holder = re.sub(r"\s+(?:Account\s*No|Account\s*Number|Acc\.?\s*No|Cust(?:omer)?\s*ID).*$", "", holder, flags=re.IGNORECASE).strip()
                     if re.search(r"NAGAPATTINAM|TAMIL NADU|S/O|\d{6}", holder, flags=re.IGNORECASE):
                         holder = ""
 
             if holder and not meta["account_holder"]:
                 meta["account_holder"] = holder
 
-        if ("account number" in lowered or "account no" in lowered or "a/c no" in lowered or "accountno" in lowered) and not meta["account_no"]:
-            match = re.search(r"(?:account\s*no|account\s*number|a\/c\s*no)[\s:]*([0-9X\s\-]{8,25})", text, re.IGNORECASE)
+        if ("account number" in lowered or "account no" in lowered or "a/c no" in lowered or "accountno" in lowered or "acc.no" in lowered or "acc. no" in lowered) and not meta["account_no"]:
+            match = re.search(r"(?:account\s*no|account\s*number|a\/c\s*no|acc\.?\s*no\.?)[\s:]*([0-9X\s\-]{8,25})", text, re.IGNORECASE)
             if match:
                 digs = re.search(r"\b[0-9X]{8,20}\b", match.group(1).replace(" ", ""))
                 if digs:
@@ -744,7 +779,7 @@ def extract_document_metadata(doc: ExtractedDocument) -> dict:
             if num_m:
                 meta["account_no"] = num_m.group(1)
 
-        if "product:" in lowered or "account type" in lowered or "accounttype" in lowered or "scheme:" in lowered:
+        if "product:" in lowered or "account type" in lowered or "accounttype" in lowered or "scheme:" in lowered or "acc. type" in lowered or "acc.type" in lowered or "acc type" in lowered:
             if re.search(r"\bca-|\bca\b|\bcurrent\b", lowered):
                 meta["account_type"] = "Current"
             elif re.search(r"\bsb-|\bsb\b|\bsaving", lowered):
@@ -753,41 +788,47 @@ def extract_document_metadata(doc: ExtractedDocument) -> dict:
                 meta["account_type"] = "Overdraft"
 
         if not meta["statement_period"]:
-            m_from_to = re.search(r"from\s*:\s*([0-9A-Za-z\-\/\.]+)\s+to\s*:\s*([0-9A-Za-z\-\/\.]+)", text, re.IGNORECASE)
-            if m_from_to:
-                meta["statement_period"] = f"{m_from_to.group(1).strip()} to {m_from_to.group(2).strip()}"
-            elif ("statement period" in lowered or "for the period of" in lowered):
-                match = re.search(r"(?:statement\s+(?:for\s+the\s+)?period|for\s+the\s+period\s+of)[\s:]+(.*)$", text, re.IGNORECASE)
-                if match:
-                    meta["statement_period"] = match.group(1).strip()
-            elif ("statement from" in lowered or "from date" in lowered):
-                m_from = re.search(r"(?:statement\s+from|from\s+date)[\s:]*([0-9A-Za-z\-\/\.]+)", text, re.IGNORECASE)
-                if m_from:
-                    from_str = m_from.group(1).strip()
-                    to_str = ""
-                    m_to = re.search(r"\bto[\s:]*([0-9A-Za-z\-\/\.]+)", text, re.IGNORECASE)
-                    if m_to and m_to.group(1).strip().lower() != from_str.lower():
-                        to_str = m_to.group(1).strip()
-                    else:
-                        for next_line in all_candidate_lines[idx+1:idx+4]:
-                            m_to2 = re.search(r"\bto[\s:]*([0-9A-Za-z\-\/\.]+)", next_line, re.IGNORECASE)
-                            if m_to2 and m_to2.group(1).strip().lower() != from_str.lower():
-                                to_str = m_to2.group(1).strip()
-                                break
-                    if from_str and to_str:
-                        meta["statement_period"] = f"{from_str} to {to_str}"
-                    elif from_str:
-                        meta["statement_period"] = from_str
-
+            m_st_per = re.search(r"(?:st(?:mt)?\.?\s*period|statement\s*period)\s*[:\n\-]\s*([0-9A-Za-z\-\/\.]+)\s+to\s+([0-9A-Za-z\-\/\.]+)", text, re.IGNORECASE)
+            if m_st_per:
+                meta["statement_period"] = f"{m_st_per.group(1).strip()} to {m_st_per.group(2).strip()}"
+            else:
+                m_from_to = re.search(r"from\s*:\s*([0-9A-Za-z\-\/\.]+)\s+to\s*:\s*([0-9A-Za-z\-\/\.]+)", text, re.IGNORECASE)
+                if m_from_to:
+                    meta["statement_period"] = f"{m_from_to.group(1).strip()} to {m_from_to.group(2).strip()}"
+                elif ("statement period" in lowered or "for the period of" in lowered):
+                    match = re.search(r"(?:statement\s+(?:for\s+the\s+)?period|for\s+the\s+period\s+of)[\s:]+(.*)$", text, re.IGNORECASE)
+                    if match:
+                        meta["statement_period"] = match.group(1).strip()
+                elif ("statement from" in lowered or "from date" in lowered):
+                    m_from = re.search(r"(?:statement\s+from|from\s+date)[\s:]*([0-9A-Za-z\-\/\.]+)", text, re.IGNORECASE)
+                    if m_from:
+                        from_str = m_from.group(1).strip()
+                        to_str = ""
+                        m_to = re.search(r"\bto[\s:]*([0-9A-Za-z\-\/\.]+)", text, re.IGNORECASE)
+                        if m_to and m_to.group(1).strip().lower() != from_str.lower():
+                            to_str = m_to.group(1).strip()
+                        else:
+                            for next_line in all_candidate_lines[idx+1:idx+4]:
+                                m_to2 = re.search(r"\bto[\s:]*([0-9A-Za-z\-\/\.]+)", next_line, re.IGNORECASE)
+                                if m_to2 and m_to2.group(1).strip().lower() != from_str.lower():
+                                    to_str = m_to2.group(1).strip()
+                                    break
+                        if from_str and to_str:
+                            meta["statement_period"] = f"{from_str} to {to_str}"
+                        elif from_str:
+                            meta["statement_period"] = from_str
 
         if ("opening balance" in lowered or "brought forward" in lowered or "b/f" in lowered) and meta["opening_balance"] is None:
-            match = re.search(r"(?:opening\s+balance|brought\s+forward|b\/f)[^\d]*([\d,]+\.?\d*)", text, re.IGNORECASE)
-            if match:
-                val_str = match.group(1).replace(",", "")
-                try:
-                    meta["opening_balance"] = float(val_str)
-                except ValueError:
-                    pass
+            kw_match = re.search(r"(?:opening\s+balance|brought\s+forward|b\/f)", text, re.IGNORECASE)
+            if kw_match:
+                after_kw = text[kw_match.end():]
+                nums = re.findall(r"[\d,]+\.\d{2}\b", after_kw)
+                if nums:
+                    chosen = nums[-1] if float(nums[0].replace(",", "")) == 0.0 and len(nums) > 1 else nums[0]
+                    try:
+                        meta["opening_balance"] = float(chosen.replace(",", ""))
+                    except ValueError:
+                        pass
 
         if ("ending balance" in lowered or "closing balance" in lowered or "cleared balance" in lowered) and meta["closing_balance"] is None:
             match = re.search(r"(?:ending|closing|cleared)\s+balance[^\d]*([\d,]+\.?\d*)", text, re.IGNORECASE)
@@ -798,7 +839,6 @@ def extract_document_metadata(doc: ExtractedDocument) -> dict:
                 except ValueError:
                     pass
 
-
         if "statement total" in lowered:
             match = re.search(r"statement\s+total[^\d]*([\d,]+\.?\d*)[^\d]*([\d,]+\.?\d*)", text, re.IGNORECASE)
             if match:
@@ -808,6 +848,12 @@ def extract_document_metadata(doc: ExtractedDocument) -> dict:
                     meta["footer_total_credit"] = float(match.group(2).replace(",", ""))
                 except ValueError:
                     pass
+
+    if not meta["account_holder"]:
+        p1_full_text = "\n".join(l.text for l in p1.lines)
+        m_holder_block = re.search(r"ACCOUNT\s+SUMMARY\s*[\r\n]+\s*(?:Current\s+Balance\s*[\r\n]+)?\s*([A-Z\s\.]{3,50})[\r\n]+\s*\d", p1_full_text, re.IGNORECASE)
+        if m_holder_block:
+            meta["account_holder"] = m_holder_block.group(1).strip()
 
     # Fallback for label/value separation format: Account Holder Name ... : BAIRAVAPRAKASH \n PUGAZHENDHI
     # Uses word bounding boxes (pdfplumber) to handle text ordering and wrapping.

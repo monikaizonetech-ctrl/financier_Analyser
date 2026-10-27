@@ -373,7 +373,11 @@ def upload_report_file(
     max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     report_dir = os.path.join(settings.UPLOAD_DIR, report.id)
     os.makedirs(report_dir, exist_ok=True)
-    stored_path = os.path.join(report_dir, file.filename)
+    
+    # Generate unique collision-free filename on disk while preserving file.filename as user-facing name
+    file_id = str(uuid.uuid4())
+    safe_basename = os.path.basename(file.filename or "statement.pdf").replace(" ", "_")
+    stored_path = os.path.join(report_dir, f"{file_id}_{safe_basename}")
 
     # Stream file to disk in 64KB chunks to avoid reading entire file into RAM
     total_bytes = 0
@@ -465,6 +469,7 @@ def upload_report_file(
 
     next_s_no = (db.query(ReportFile).filter(ReportFile.report_id == report.id).count()) + 1
     report_file = ReportFile(
+        id=file_id,
         report_id=report.id,
         s_no=next_s_no,
         file_name=file.filename,
@@ -481,6 +486,12 @@ def upload_report_file(
         authenticity_reasons=authenticity_reasons,
     )
     db.add(report_file)
+
+    # Invalidate stale analysis results when a new statement file is uploaded
+    if report.status == ReportStatus.READY_TO_USE:
+        report.status = ReportStatus.NEED_TO_ANALYSE
+        report.result_summary = None
+
     db.commit()
     db.refresh(report_file)
     return report_file
@@ -557,17 +568,11 @@ def delete_report_file(
         raise HTTPException(status_code=404, detail="File not found")
     if os.path.exists(report_file.stored_path):
         os.remove(report_file.stored_path)
-    removed_name = report_file.file_name
     db.delete(report_file)
 
-    if report.result_summary and isinstance(report.result_summary, dict):
-        summary = dict(report.result_summary)
-        details = summary.get("details", [])
-        if details:
-            summary["details"] = [d for d in details if d.get("file_name") != removed_name]
-            summary["files_analysed"] = len(summary["details"])
-            report.result_summary = summary
-            flag_modified(report, "result_summary")
+    # Invalidate stale summary so deleted document data is never retained in subsequent reports
+    report.result_summary = None
+    report.status = ReportStatus.NEED_TO_ANALYSE
 
     db.commit()
     return None
@@ -628,6 +633,7 @@ def analyse_report(
             set_report_progress(report.id, current, total, message)
 
         file_paths = [f.stored_path for f in target_files]
+        file_names = [f.file_name for f in target_files]
         is_large = _is_large_analysis(file_paths)
 
         if is_large:
@@ -655,7 +661,8 @@ def analyse_report(
         summary = run_analysis(
             report.report_type,
             file_paths,
-            account_holder=current_user.name,
+            account_holder=None,
+            file_names=file_names,
             progress_callback=update_progress,
         )
 
@@ -677,9 +684,10 @@ def analyse_report(
             if isinstance(obj, ReportFile) and obj.id in target_file_ids and obj.id not in live_file_ids:
                 db.expunge(obj)
 
-        details_map = {d.get("file_name"): d for d in summary.get("details", [])}
+        path_map = {d.get("file_path"): d for d in summary.get("details", []) if d.get("file_path")}
+        name_map = {d.get("file_name"): d for d in summary.get("details", []) if d.get("file_name")}
         for f in live_files:
-            detail = details_map.get(f.file_name, {})
+            detail = path_map.get(f.stored_path) or name_map.get(f.file_name, {})
             txns = detail.get("transactions", [])
             is_stats = bool(detail.get("is_filing_statistics"))
             if txns or is_stats:
@@ -708,22 +716,34 @@ def analyse_report(
                 f.authenticity = FileAuthenticity.UNVERIFIABLE
                 f.authenticity_reasons = [detail.get("note") or "No transactions extracted"]
 
-        # Merge new/updated file details into existing report result_summary
-        existing_summary = dict(db_report.result_summary or {})
-        existing_details = existing_summary.get("details", [])
-        
-        # Build merged details list keyed by file_name so each file stays completely separate
-        merged_details_dict = {d.get("file_name"): d for d in existing_details if d.get("file_name")}
-        for d in summary.get("details", []):
-            fname = d.get("file_name")
-            if fname:
-                merged_details_dict[fname] = d
-        
-        # Keep only details for files currently in the report
-        current_names = {f.file_name for f in db_report.files}
-        final_details = [d for fname, d in merged_details_dict.items() if fname in current_names]
+        any_success = any(f.file_status == FileStatus.PROCESSED for f in live_files)
+        if not any_success:
+            db_report.status = ReportStatus.FAILED
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Bank statement extraction failed: No transactions could be parsed from the uploaded document(s)."
+            )
 
-        # Use new summary shell but with merged isolated file details
+        # Merge new/updated file details into existing report result_summary
+        if target_file_id:
+            existing_summary = dict(db_report.result_summary or {})
+            existing_details = existing_summary.get("details", [])
+            merged_details_dict = {d.get("file_path", d.get("file_name")): d for d in existing_details}
+            for d in summary.get("details", []):
+                key = d.get("file_path", d.get("file_name"))
+                if key:
+                    merged_details_dict[key] = d
+            live_paths = {f.stored_path for f in db_report.files}
+            live_names = {f.file_name for f in db_report.files}
+            final_details = [
+                d for key, d in merged_details_dict.items()
+                if d.get("file_path") in live_paths or d.get("file_name") in live_names
+            ]
+        else:
+            final_details = summary.get("details", [])
+
+        # Use new summary shell with current isolated file details
         final_summary = dict(summary)
         final_summary["details"] = final_details
         final_summary["files_analysed"] = len(final_details)

@@ -509,6 +509,10 @@ def strip_footer_bleed(text: str) -> str:
         r"RegisteredOfficeAddress:[^\n]*",
         r"This\s*is\s*a\s*computer[\s-]generated\s*statement[^\n]*",
         r"Thisisacomputergeneratedstatement[^\n]*",
+        r"Note:\s*This\s*is\s*a\s*computer[\s-]generated\s*(?:report|statement)[^\n]*",
+        r"Computer[\s-]generated\s*(?:entry|statement|report)[^\n]*",
+        r"does\s+not\s+require\s+(?:any\s+)?signature[^\n]*",
+        r"Acronyms\s+used\s+in\s+the\s+statement[^\n]*",
         r"Opening\s*Balance\s+Dr\s*Count\s+Cr\s*Count[^\n]*",
         r"OpeningBalance\s+DrCount\s+CrCount[^\n]*",
         r"STATEMENT\s*SUMMARY\s*:-?[^\n]*",
@@ -657,10 +661,10 @@ def parse_table_transactions(
     if not cleaned_table:
         return []
 
-    # Find the header row
+    # Find the header row (search up to 35 rows dynamically to handle long customer/branch headers)
     header_idx = -1
     col_mapping: dict[ColumnRole, int] = {}
-    for r_idx in range(min(5, len(cleaned_table))):
+    for r_idx in range(min(35, len(cleaned_table))):
         row = cleaned_table[r_idx]
         mapping = identify_column_roles([str(c or "").replace("\n", " ") for c in row])
         has_date = (ColumnRole.DATE in mapping or ColumnRole.VALUE_DATE in mapping)
@@ -968,21 +972,20 @@ def _match_word_to_column(w: ExtractedWord, col_defs: list[ColumnDef]) -> Column
     if not col_defs:
         return ColumnRole.UNKNOWN
 
-    w_mid = (w.x0 + w.x1) / 2.0
-    best_role = ColumnRole.UNKNOWN
-    best_score = -float("inf")
-
+    # Direct horizontal overlap check
     for col in col_defs:
-        overlap = max(0.0, min(w.x1, col.x1) - max(w.x0, col.x0))
-        col_mid = (col.x0 + col.x1) / 2.0
-        dist = abs(w_mid - col_mid)
-        # Weight overlap heavily, penalize distance from center
-        score = (overlap * 10.0) - dist
-        if score > best_score:
-            best_score = score
-            best_role = col.role
+        if w.x0 >= col.x0 - 2.0 and w.x1 <= col.x1 + 2.0:
+            return col.role
 
-    return best_role
+    w_mid = (w.x0 + w.x1) / 2.0
+    # Voronoi/interval partition between adjacent columns
+    for i, col in enumerate(col_defs):
+        left_bound = 0.0 if i == 0 else (col_defs[i - 1].x1 + col.x0) / 2.0
+        right_bound = float("inf") if i == len(col_defs) - 1 else (col.x1 + col_defs[i + 1].x0) / 2.0
+        if left_bound <= w_mid < right_bound:
+            return col.role
+
+    return ColumnRole.UNKNOWN
 
 
 
@@ -1016,8 +1019,18 @@ def parse_spatial_line_transactions(
     txns: list[CanonicalTransaction] = []
     current_txn: CanonicalTransaction | None = initial_txn
     prev_balance: float | None = initial_txn.balance if initial_txn else None
+    pending_ref: str = ""
 
-    for line in page.transaction_lines:
+    date_col = next((c for c in col_defs if c.role == ColumnRole.DATE), None) if col_defs else None
+    date_col_right = 9999.0
+    if col_defs and date_col:
+        date_idx = col_defs.index(date_col)
+        if date_idx + 1 < len(col_defs):
+            date_col_right = (date_col.x1 + col_defs[date_idx + 1].x0) / 2.0
+        else:
+            date_col_right = date_col.x1 + 15.0
+
+    for idx, line in enumerate(page.transaction_lines):
         text = line.text.strip()
         if not text:
             continue
@@ -1036,7 +1049,30 @@ def parse_spatial_line_transactions(
         if date_match and date_match.start() < 25:
             prefix = text[:date_match.start()].lower()
             if not any(kw in prefix for kw in ("from", "to", "statement", "date:", "dated:", "branch")):
-                d = parse_date(date_match.group(1))
+                if line.words and date_col:
+                    d_word = next((w for w in line.words if date_match.group(1) in w.text or w.text in date_match.group(1)), None)
+                    if d_word and (d_word.x0 + d_word.x1) / 2.0 > date_col_right:
+                        d = None
+                    else:
+                        d = parse_date(date_match.group(1))
+                else:
+                    d = parse_date(date_match.group(1))
+
+        # Check for standalone reference row preceding a new transaction
+        if d is None and idx + 1 < len(page.transaction_lines) and line.words and len(line.words) <= 2:
+            next_l = page.transaction_lines[idx + 1]
+            if next_l.words:
+                is_ref_only = all(
+                    _match_word_to_column(w, col_defs) == ColumnRole.REFERENCE or re.match(r"^\d{6,16}$", w.text.strip())
+                    for w in line.words
+                )
+                if is_ref_only:
+                    nm = re.search(r"\b(\d{1,4}[-/\.]\d{1,2}[-/\.]\d{2,4}|\d{1,2}[-/\.][A-Za-z]{3}[-/\.]\d{2,4})\b", next_l.text)
+                    if nm:
+                        first_w = next_l.words[0]
+                        if (first_w.x0 + first_w.x1) / 2.0 <= date_col_right:
+                            pending_ref = " ".join(w.text.strip() for w in line.words)
+                            continue
 
         if d is not None:
             # Anchor found: START OF NEW TRANSACTION
@@ -1044,6 +1080,7 @@ def parse_spatial_line_transactions(
             credit_val = 0.0
             bal_val = None
             indicator = None
+            val_date_str = ""
 
             if line.words and col_defs:
                 # Group words on this line by matched column role
@@ -1070,23 +1107,30 @@ def parse_spatial_line_transactions(
                     if w_txt in _PLACEHOLDER_WORDS:
                         continue
 
+                    matched_role = _match_word_to_column(w, col_defs)
                     if _is_amount_or_placeholder(w_txt):
-                        matched_role = _match_word_to_column(w, col_defs)
                         if matched_role in amount_words_by_role:
                             amount_words_by_role[matched_role].append(w)
                         elif matched_role == ColumnRole.REFERENCE:
                             ref_words.append(w)
+                        elif matched_role == ColumnRole.VALUE_DATE:
+                            val_date_str = w_txt
                         else:
                             desc_words.append(w)
+                    elif matched_role == ColumnRole.REFERENCE:
+                        ref_words.append(w)
+                    elif matched_role == ColumnRole.VALUE_DATE:
+                        val_date_str = w_txt
+                    elif matched_role == ColumnRole.DATE and re.match(r"^\d{2}:\d{2}", w_txt):
+                        pass
                     else:
-                        matched_role = _match_word_to_column(w, col_defs)
-                        if matched_role == ColumnRole.REFERENCE:
-                            ref_words.append(w)
-                        else:
-                            desc_words.append(w)
+                        desc_words.append(w)
 
                 narration = " ".join(w.text for w in desc_words).strip()
                 reference = " ".join(w.text for w in ref_words).strip()
+                if pending_ref and not reference:
+                    reference = pending_ref
+                    pending_ref = ""
 
                 # Extract DEBIT
                 if amount_words_by_role[ColumnRole.DEBIT]:
@@ -1147,7 +1191,8 @@ def parse_spatial_line_transactions(
                         amounts_found.append((amt, am.start(), am.end(), ind))
 
                 narration = text[date_match.end():].strip()
-                reference = ""
+                reference = pending_ref or ""
+                pending_ref = ""
 
                 if len(amounts_found) >= 2:
                     bal_val = amounts_found[-1][0]
@@ -1195,6 +1240,10 @@ def parse_spatial_line_transactions(
                 else:
                     debit_val = 0.0
                     credit_val = 0.0
+                if bal_val is not None:
+                    prev_balance = bal_val
+                if meta is not None and meta.get("opening_balance") is None and bal_val is not None:
+                    meta["opening_balance"] = bal_val
 
             new_txn = CanonicalTransaction(
                 date=d,
@@ -1203,6 +1252,7 @@ def parse_spatial_line_transactions(
                 debit=debit_val,
                 credit=credit_val,
                 balance=bal_val,
+                value_date=val_date_str,
                 source_page=page.page_number,
                 raw_text=text,
                 extra_metadata={"indicator": indicator} if indicator else {},
@@ -1224,8 +1274,8 @@ def parse_spatial_line_transactions(
                         w_txt = w.text.strip()
                         if not w_txt or w_txt in _PLACEHOLDER_WORDS:
                             continue
+                        m_role = _match_word_to_column(w, col_defs)
                         if _is_amount_or_placeholder(w_txt):
-                            m_role = _match_word_to_column(w, col_defs)
                             amt, ind = clean_amount_str(w_txt)
                             if amt > 0:
                                 if m_role == ColumnRole.DEBIT and current_txn.debit == 0.0:
@@ -1235,10 +1285,17 @@ def parse_spatial_line_transactions(
                                 elif m_role == ColumnRole.BALANCE and current_txn.balance is None:
                                     current_txn.balance = amt
                                     prev_balance = amt
-                                elif m_role in (ColumnRole.DESCRIPTION, ColumnRole.REFERENCE):
+                                elif m_role in (ColumnRole.DESCRIPTION,):
                                     clean_words.append(w_txt)
-                            elif m_role in (ColumnRole.DESCRIPTION, ColumnRole.REFERENCE):
-                                clean_words.append(w_txt)
+                        elif m_role == ColumnRole.VALUE_DATE and not current_txn.value_date:
+                            current_txn.value_date = w_txt
+                        elif m_role == ColumnRole.REFERENCE:
+                            if not current_txn.reference:
+                                current_txn.reference = w_txt
+                            elif w_txt not in current_txn.reference:
+                                current_txn.reference = f"{current_txn.reference} {w_txt}"
+                        elif m_role == ColumnRole.DATE and re.match(r"^\d{2}:\d{2}", w_txt):
+                            pass
                         else:
                             clean_words.append(w_txt)
                     if clean_words:

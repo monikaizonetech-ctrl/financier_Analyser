@@ -1,8 +1,11 @@
+from io import BytesIO
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.core import Document, Applicant
+from app.models.report import Report
+from app.services.file_analysis_service import build_excel_report, build_pdf_report
 from app.services.reports import excel_generator, pdf_generator
 
 router = APIRouter()
@@ -33,12 +36,25 @@ def get_reports_history(db: Session = Depends(get_db)):
     }
 
 @router.get("/{applicant_id}/{module}/excel")
-def download_excel(applicant_id: str, module: str):
+def download_excel(applicant_id: str, module: str, db: Session = Depends(get_db)):
     module = module.lower()
     
     if module == "bank":
-        file_stream = excel_generator.generate_bank_excel(applicant_id)
-        filename = f"Bank_Analysis_{applicant_id}.xlsx"
+        report = db.query(Report).filter(
+            (Report.id == applicant_id) | (Report.reference_id == applicant_id)
+        ).first()
+        if report and report.result_summary:
+            content = build_excel_report(report.name, "BSA", report.result_summary)
+            file_stream = BytesIO(content)
+            filename = f"{report.name}.xlsx"
+        else:
+            doc = db.query(Document).filter(Document.id == applicant_id).first()
+            if doc and doc.extracted_data:
+                content = build_excel_report(doc.name, "BSA", doc.extracted_data)
+                file_stream = BytesIO(content)
+                filename = f"{doc.name}.xlsx"
+            else:
+                raise HTTPException(status_code=404, detail="Bank statement report not found or not analysed yet")
     elif module == "gst":
         file_stream = excel_generator.generate_gst_excel(applicant_id)
         filename = f"GST_Analysis_{applicant_id}.xlsx"
@@ -58,12 +74,25 @@ def download_excel(applicant_id: str, module: str):
     )
 
 @router.get("/{applicant_id}/{module}/pdf")
-def download_pdf(applicant_id: str, module: str):
+def download_pdf(applicant_id: str, module: str, db: Session = Depends(get_db)):
     module = module.lower()
     
     if module == "bank":
-        file_stream = pdf_generator.generate_bank_pdf(applicant_id)
-        filename = f"Bank_Analysis_{applicant_id}.pdf"
+        report = db.query(Report).filter(
+            (Report.id == applicant_id) | (Report.reference_id == applicant_id)
+        ).first()
+        if report and report.result_summary:
+            content = build_pdf_report(report.name, "BSA", report.result_summary)
+            file_stream = BytesIO(content)
+            filename = f"{report.name}.pdf"
+        else:
+            doc = db.query(Document).filter(Document.id == applicant_id).first()
+            if doc and doc.extracted_data:
+                content = build_pdf_report(doc.name, "BSA", doc.extracted_data)
+                file_stream = BytesIO(content)
+                filename = f"{doc.name}.pdf"
+            else:
+                raise HTTPException(status_code=404, detail="Bank statement report not found or not analysed yet")
     elif module == "gst":
         file_stream = pdf_generator.generate_gst_pdf(applicant_id)
         filename = f"GST_Analysis_{applicant_id}.pdf"

@@ -323,9 +323,11 @@ def extract_pdf_document(
     import hashlib
     import logging
     try:
+        hasher = hashlib.sha256()
         with open(file_path, "rb") as f:
-            file_bytes = f.read()
-            file_hash = hashlib.sha256(file_bytes).hexdigest()
+            while chunk := f.read(65536):
+                hasher.update(chunk)
+        file_hash = hasher.hexdigest()
         logging.info(f"extracted from {file_name}, sha256={file_hash}")
     except Exception as e:
         logging.warning(f"Failed to hash {file_name}: {e}")
@@ -369,7 +371,8 @@ def extract_pdf_document(
                 p_height = float(page.height)
 
                 raw_page_text = page.extract_text() or ""
-                debug_text_chunks.append(f"--- PAGE {page_num} ---\n{raw_page_text}")
+                if len(debug_text_chunks) < 20:
+                    debug_text_chunks.append(f"--- PAGE {page_num} ---\n{raw_page_text}")
                 char_count = len(raw_page_text.strip())
                 total_chars += char_count
 
@@ -407,11 +410,25 @@ def extract_pdf_document(
                 _classify_page_lines(extracted_page, page_num, pages_to_process)
                 doc.pages.append(extracted_page)
 
-                # Free pdfplumber internal geometries, character caches and font maps
+                # Free pdfplumber internal geometries, character caches and font maps promptly
                 try:
-                    page.flush_cache()
+                    page.close()
                 except Exception:
-                    pass
+                    try:
+                        page.flush_cache()
+                    except Exception:
+                        pass
+
+                # Periodically clear pdfminer internal object cache and trigger GC
+                # to prevent circular reference cycles from accumulating across hundreds of pages
+                if page_num % 15 == 0:
+                    try:
+                        if hasattr(pdf.doc, "_cached_objs"):
+                            pdf.doc._cached_objs.clear()
+                    except Exception:
+                        pass
+                    import gc
+                    gc.collect()
 
             # Only retain debug text preview for the initial pages to avoid massive string buffers
             doc.raw_debug_text = "\n\n".join(debug_text_chunks[:20])

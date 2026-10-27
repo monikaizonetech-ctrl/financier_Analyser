@@ -1556,6 +1556,17 @@ def parse_indian_bank_text_transactions(
                 "raw_lines": [l.text for l in b],
             })
 
+        # Promptly release page-level data structures to conserve memory
+        try:
+            page.lines.clear()
+            page.transaction_lines.clear()
+            page.header_lines.clear()
+            page.footer_lines.clear()
+            page.raw_tables.clear()
+            page.raw_text = ""
+        except Exception:
+            pass
+
     # Convert to CanonicalTransaction dicts using balance-difference method
     result: list[dict] = []
     prev_bal = opening_balance_dec
@@ -1692,6 +1703,17 @@ def parse_document_transactions(
                 discovered_cols = cols
 
         all_txns.extend(page_txns)
+
+        # Promptly release page-level data structures to free RAM
+        try:
+            page.raw_tables.clear()
+            page.lines.clear()
+            page.transaction_lines.clear()
+            page.header_lines.clear()
+            page.footer_lines.clear()
+            page.raw_text = ""
+        except Exception:
+            pass
 
     # Deduplicate only true duplicate records (e.g. repeated table rows or duplicated page reads)
     deduped = []

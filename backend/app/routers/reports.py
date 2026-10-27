@@ -45,6 +45,54 @@ from app.services.pdf_extractor import extract_pdf_document, extract_document_me
 from app.services.progress_service import set_report_progress, get_report_progress, clear_report_progress
 from app.utils.pagination import paginate
 from io import BytesIO
+import threading
+
+_large_pdf_semaphore = threading.Semaphore(1)
+
+
+def _get_available_memory_mb() -> float | None:
+    """Check available system memory in MB across Linux and Windows."""
+    if os.path.exists("/proc/meminfo"):
+        try:
+            with open("/proc/meminfo", "r") as f:
+                for line in f:
+                    if line.startswith("MemAvailable:"):
+                        return int(line.split()[1]) / 1024.0
+        except Exception:
+            pass
+    try:
+        import ctypes
+        class MEMORYSTATUSEX(ctypes.Structure):
+            _fields_ = [
+                ("dwLength", ctypes.c_ulong),
+                ("dwMemoryLoad", ctypes.c_ulong),
+                ("ullTotalPhys", ctypes.c_ulonglong),
+                ("ullAvailPhys", ctypes.c_ulonglong),
+                ("ullTotalPageFile", ctypes.c_ulonglong),
+                ("ullAvailPageFile", ctypes.c_ulonglong),
+                ("ullTotalVirtual", ctypes.c_ulonglong),
+                ("ullAvailVirtual", ctypes.c_ulonglong),
+                ("sullAvailExtendedVirtual", ctypes.c_ulonglong),
+            ]
+        stat = MEMORYSTATUSEX()
+        stat.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(stat)):
+            return stat.ullAvailPhys / (1024.0 * 1024.0)
+    except Exception:
+        pass
+    return None
+
+
+def _is_large_analysis(file_paths: list[str]) -> bool:
+    for fp in file_paths:
+        if fp.lower().endswith(".pdf") and os.path.exists(fp):
+            try:
+                # PDF >= 2MB is considered large and memory-sensitive
+                if os.path.getsize(fp) >= 2 * 1024 * 1024:
+                    return True
+            except Exception:
+                pass
+    return False
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
@@ -543,11 +591,33 @@ def analyse_report(
     def update_progress(current: int, total: int, message: str):
         set_report_progress(report.id, current, total, message)
 
-    update_progress(0, 1, "Initializing analysis...")
-
     file_paths = [f.stored_path for f in target_files]
+    is_large = _is_large_analysis(file_paths)
+    acquired_semaphore = False
 
     try:
+        if is_large:
+            avail_mb = _get_available_memory_mb()
+            if avail_mb is not None and avail_mb < 150:
+                import gc
+                gc.collect()
+                avail_mb = _get_available_memory_mb()
+                if avail_mb is not None and avail_mb < 100:
+                    raise HTTPException(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        detail="Server memory is critically low. Please retry analysis in a moment."
+                    )
+
+            update_progress(0, 1, "Queued: Waiting for server capacity...")
+            acquired_semaphore = _large_pdf_semaphore.acquire(timeout=600)
+            if not acquired_semaphore:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Server is busy processing another large document. Please retry shortly."
+                )
+
+        update_progress(0, 1, "Initializing analysis...")
+
         summary = run_analysis(
             report.report_type,
             file_paths,
@@ -625,7 +695,10 @@ def analyse_report(
         for f in target_files:
             if f.file_status == FileStatus.PROCESSING:
                 f.file_status = FileStatus.FAILED
-        db.commit()
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
 
         set_report_progress(report.id, 0, 1, f"Analysis failed: {str(e)}", stage="error")
         if isinstance(e, HTTPException):
@@ -634,6 +707,11 @@ def analyse_report(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Analysis failed: {str(e)}"
         )
+    finally:
+        if acquired_semaphore:
+            _large_pdf_semaphore.release()
+        import gc
+        gc.collect()
 
 
 @router.get("/{report_id}/progress")

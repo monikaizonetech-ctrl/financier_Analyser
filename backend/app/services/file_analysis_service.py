@@ -25,6 +25,7 @@ import re
 from calendar import month_abbr
 from collections import defaultdict
 from datetime import datetime, date
+from decimal import Decimal
 from io import BytesIO
 from statistics import mean, pstdev
 
@@ -683,6 +684,8 @@ def _parse_pdf_transactions(file_path: str, file_name: str, password: str | None
     try:
         doc.pages.clear()
         del doc
+        import gc
+        gc.collect()
     except Exception:
         pass
 
@@ -2881,17 +2884,44 @@ ANALYSERS = {
 }
 
 
-def _make_json_safe(obj):
-    """Recursively convert date/datetime objects to ISO strings so the
-    result_summary dict can be stored in SQLAlchemy's JSON column."""
-    if isinstance(obj, datetime):
-        return obj.isoformat()
-    if isinstance(obj, date):
-        return obj.isoformat()
+def _make_json_safe(obj, seen: set | None = None):
+    """Recursively convert date/datetime/Decimal objects to JSON-serializable types in place
+    to avoid expensive deep copies while ensuring valid JSON serialization."""
+    if seen is None:
+        seen = set()
+    obj_id = id(obj)
+    if obj_id in seen:
+        return obj
+    seen.add(obj_id)
+
     if isinstance(obj, dict):
-        return {k: _make_json_safe(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [_make_json_safe(v) for v in obj]
+        for k, v in list(obj.items()):
+            if isinstance(v, (datetime, date)):
+                obj[k] = v.isoformat()
+            elif isinstance(v, Decimal):
+                obj[k] = float(v)
+            elif isinstance(v, (dict, list)):
+                _make_json_safe(v, seen)
+            elif isinstance(v, tuple):
+                obj[k] = [_make_json_safe(item, seen) for item in v]
+        return obj
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            if isinstance(v, (datetime, date)):
+                obj[i] = v.isoformat()
+            elif isinstance(v, Decimal):
+                obj[i] = float(v)
+            elif isinstance(v, (dict, list)):
+                _make_json_safe(v, seen)
+            elif isinstance(v, tuple):
+                obj[i] = [_make_json_safe(item, seen) for item in v]
+        return obj
+    elif isinstance(obj, tuple):
+        return tuple(_make_json_safe(item, seen) for item in obj)
+    elif isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    elif isinstance(obj, Decimal):
+        return float(obj)
     return obj
 
 
@@ -3193,11 +3223,9 @@ def _build_analytics(per_file: list[dict], account_holder: str) -> dict:
             all_rows.reverse()
             
     _log_step("2. Sort")
-    # Then ensure strict ascending sort. If dates match, preserve the now-corrected relative order.
-    # We use enumerate so stable sort keeps original corrected order for same dates.
-    enumerated_rows = list(enumerate(all_rows))
-    enumerated_rows.sort(key=lambda x: (x[1].get("date") or date.min, x[0]))
-    all_rows = [r for _, r in enumerated_rows]
+    # Ensure strict ascending sort in place. Python's Timsort is guaranteed stable,
+    # preserving the now-corrected relative order for identical dates without extra allocations.
+    all_rows.sort(key=lambda x: x.get("date") or date.min)
     
     for idx, r in enumerate(all_rows, start=1):
         r["s_no"] = idx

@@ -107,11 +107,36 @@ def check_document_authenticity(
     is_scanned = False
     font_anomaly = False
 
-    # 1. Read raw bytes for Incremental Updates (%%EOF markers)
+    has_byte_range = False
+    has_contents = False
+
+    # 1. Read raw bytes in chunks for Incremental Updates (%%EOF markers) and signature markers
     try:
+        chunk_size = 65536
+        overlap_size = 16
         with open(file_path, "rb") as f:
-            raw_bytes = f.read()
-        eof_count = raw_bytes.count(b"%%EOF")
+            buf = f.read(chunk_size)
+            while buf:
+                eof_count += buf.count(b"%%EOF")
+                if not has_byte_range and b"/ByteRange" in buf:
+                    has_byte_range = True
+                if not has_contents and b"/Contents" in buf:
+                    has_contents = True
+                next_chunk = f.read(chunk_size)
+                if not next_chunk:
+                    break
+                # Check for %%EOF spanning chunk boundaries without double counting
+                boundary = buf[-overlap_size:] + next_chunk[:overlap_size]
+                for i in range(len(boundary) - 4):
+                    if boundary[i:i+5] == b"%%EOF":
+                        if i < overlap_size and (i + 5) > overlap_size:
+                            eof_count += 1
+                if not has_byte_range and b"/ByteRange" in boundary:
+                    has_byte_range = True
+                if not has_contents and b"/Contents" in boundary:
+                    has_contents = True
+                buf = next_chunk
+
         if eof_count > 1:
             suspicious_reasons.append(
                 f"Incremental updates detected ({eof_count} %%EOF markers) - document edited after generation"
@@ -120,6 +145,7 @@ def check_document_authenticity(
         eof_count = 1
 
     # 2. Inspect PDF structure and Metadata via PyMuPDF
+    doc = None
     try:
         doc = pymupdf.open(file_path)
         metadata = doc.metadata or {}
@@ -156,11 +182,11 @@ def check_document_authenticity(
         try:
             # Check for digital signature dictionaries
             sig_count = doc.get_sigflags()
-            if sig_count > 0 or b"/ByteRange" in raw_bytes:
+            if sig_count > 0 or has_byte_range:
                 has_sig = True
                 # Check signature integrity
                 # PyMuPDF doesn't always have cryptographic cert stores, but if signature bytes are corrupted:
-                if b"/ByteRange" in raw_bytes and b"/Contents" not in raw_bytes:
+                if has_byte_range and not has_contents:
                     sig_valid = False
                     tampered_reasons.append("Digital signature structure is corrupted or invalid")
                 else:
@@ -180,10 +206,14 @@ def check_document_authenticity(
             if total_text_len == 0 or avg_text_per_page < 15:
                 is_scanned = True
                 unverifiable_reasons.append("Scanned PDF with no extractable text layer")
-
-        doc.close()
     except Exception as e:
         pass
+    finally:
+        if doc is not None:
+            try:
+                doc.close()
+            except Exception:
+                pass
 
     # 3. Financial Integrity Checks (if parsed transactions are provided)
     if parsed_transactions:

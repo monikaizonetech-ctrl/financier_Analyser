@@ -45,9 +45,14 @@ from app.services.pdf_extractor import extract_pdf_document, extract_document_me
 from app.services.progress_service import set_report_progress, get_report_progress, clear_report_progress
 from app.utils.pagination import paginate
 from io import BytesIO
+import logging
 import threading
 
+logger = logging.getLogger(__name__)
+
 _large_pdf_semaphore = threading.Semaphore(1)
+_active_reports: set[str] = set()
+_active_reports_lock = threading.Lock()
 
 
 def _get_available_memory_mb() -> float | None:
@@ -81,6 +86,17 @@ def _get_available_memory_mb() -> float | None:
     except Exception:
         pass
     return None
+
+
+def _check_report_not_processing(report: Report, action_detail: str) -> None:
+    with _active_reports_lock:
+        is_active = report.id in _active_reports
+    if is_active or report.status == ReportStatus.PROCESSING:
+        logger.warning("Action rejected: %s (report %s is processing)", action_detail, report.id)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=action_detail
+        )
 
 
 def _is_large_analysis(file_paths: list[str]) -> bool:
@@ -352,6 +368,7 @@ def upload_report_file(
     db: Session = Depends(get_db),
 ):
     report = _get_owned_report(report_id, current_user, db)
+    _check_report_not_processing(report, "Cannot upload files while report analysis is in progress.")
 
     max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     report_dir = os.path.join(settings.UPLOAD_DIR, report.id)
@@ -478,6 +495,7 @@ def unlock_report_file(
     db: Session = Depends(get_db),
 ):
     report = _get_owned_report(report_id, current_user, db)
+    _check_report_not_processing(report, "Cannot unlock files while report analysis is in progress.")
     report_file = db.query(ReportFile).filter(ReportFile.id == file_id, ReportFile.report_id == report.id).first()
     if not report_file:
         raise HTTPException(status_code=404, detail="File not found")
@@ -533,6 +551,7 @@ def delete_report_file(
     report_id: str, file_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     report = _get_owned_report(report_id, current_user, db)
+    _check_report_not_processing(report, "Cannot delete files while report analysis is in progress.")
     report_file = db.query(ReportFile).filter(ReportFile.id == file_id, ReportFile.report_id == report.id).first()
     if not report_file:
         raise HTTPException(status_code=404, detail="File not found")
@@ -564,38 +583,53 @@ def analyse_report(
     db: Session = Depends(get_db)
 ):
     report = _get_owned_report(report_id, current_user, db)
-    if not report.files:
-        raise HTTPException(status_code=400, detail="Upload at least one file before analysing")
+    with _active_reports_lock:
+        if report.id in _active_reports or report.status == ReportStatus.PROCESSING:
+            logger.warning("Analysis rejected: report %s is already processing", report.id)
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Analysis is already in progress for this report."
+            )
+        _active_reports.add(report.id)
 
-    target_file_id = payload.get("file_id") if payload and isinstance(payload, dict) else None
-    if target_file_id:
-        target_files = [f for f in report.files if f.id == target_file_id]
-        if not target_files:
-            raise HTTPException(status_code=404, detail="Selected file not found in report")
-    else:
-        target_files = report.files
-
-    locked_files = [f for f in target_files if f.file_status == FileStatus.PASSWORD_REQUIRED]
-    if locked_files:
-        raise HTTPException(status_code=400, detail="Please unlock all password-protected files before starting analysis.")
-
-    subscription = db.query(Subscription).filter(Subscription.user_id == current_user.org_id).first()
-    if subscription and subscription.credits_left <= 0:
-        raise HTTPException(status_code=402, detail="No credits left. Please upgrade your plan.")
-
-    report.status = ReportStatus.PROCESSING
-    for f in target_files:
-        f.file_status = FileStatus.PROCESSING
-    db.commit()
-
-    def update_progress(current: int, total: int, message: str):
-        set_report_progress(report.id, current, total, message)
-
-    file_paths = [f.stored_path for f in target_files]
-    is_large = _is_large_analysis(file_paths)
     acquired_semaphore = False
+    target_file_ids: list[str] = []
+    processing_started = False
 
     try:
+        if not report.files:
+            raise HTTPException(status_code=400, detail="Upload at least one file before analysing")
+
+        target_file_id = payload.get("file_id") if payload and isinstance(payload, dict) else None
+        if target_file_id:
+            target_files = [f for f in report.files if f.id == target_file_id]
+            if not target_files:
+                raise HTTPException(status_code=404, detail="Selected file not found in report")
+        else:
+            target_files = list(report.files)
+
+        locked_files = [f for f in target_files if f.file_status == FileStatus.PASSWORD_REQUIRED]
+        if locked_files:
+            raise HTTPException(status_code=400, detail="Please unlock all password-protected files before starting analysis.")
+
+        subscription = db.query(Subscription).filter(Subscription.user_id == current_user.org_id).first()
+        if subscription and subscription.credits_left <= 0:
+            raise HTTPException(status_code=402, detail="No credits left. Please upgrade your plan.")
+
+        target_file_ids = [f.id for f in target_files]
+
+        report.status = ReportStatus.PROCESSING
+        for f in target_files:
+            f.file_status = FileStatus.PROCESSING
+        db.commit()
+        processing_started = True
+
+        def update_progress(current: int, total: int, message: str):
+            set_report_progress(report.id, current, total, message)
+
+        file_paths = [f.stored_path for f in target_files]
+        is_large = _is_large_analysis(file_paths)
+
         if is_large:
             avail_mb = _get_available_memory_mb()
             if avail_mb is not None and avail_mb < 150:
@@ -625,8 +659,26 @@ def analyse_report(
             progress_callback=update_progress,
         )
 
+        # Reload affected records from DB before updating their status, avoiding StaleDataError
+        db_report = db.query(Report).filter(Report.id == report_id).first()
+        if not db_report:
+            raise HTTPException(status_code=404, detail="Report was deleted during analysis")
+
+        live_files = db.query(ReportFile).filter(
+            ReportFile.id.in_(target_file_ids),
+            ReportFile.report_id == report_id
+        ).all()
+        if not live_files:
+            raise HTTPException(status_code=400, detail="Target files were removed before analysis completed")
+
+        # Expunge any deleted files from session identity map so they cannot cause StaleDataError on commit
+        live_file_ids = {f.id for f in live_files}
+        for obj in list(db.identity_map.values()):
+            if isinstance(obj, ReportFile) and obj.id in target_file_ids and obj.id not in live_file_ids:
+                db.expunge(obj)
+
         details_map = {d.get("file_name"): d for d in summary.get("details", [])}
-        for f in target_files:
+        for f in live_files:
             detail = details_map.get(f.file_name, {})
             txns = detail.get("transactions", [])
             is_stats = bool(detail.get("is_filing_statistics"))
@@ -657,7 +709,7 @@ def analyse_report(
                 f.authenticity_reasons = [detail.get("note") or "No transactions extracted"]
 
         # Merge new/updated file details into existing report result_summary
-        existing_summary = dict(report.result_summary or {})
+        existing_summary = dict(db_report.result_summary or {})
         existing_details = existing_summary.get("details", [])
         
         # Build merged details list keyed by file_name so each file stays completely separate
@@ -668,39 +720,60 @@ def analyse_report(
                 merged_details_dict[fname] = d
         
         # Keep only details for files currently in the report
-        current_names = {f.file_name for f in report.files}
+        current_names = {f.file_name for f in db_report.files}
         final_details = [d for fname, d in merged_details_dict.items() if fname in current_names]
 
         # Use new summary shell but with merged isolated file details
         final_summary = dict(summary)
         final_summary["details"] = final_details
         final_summary["files_analysed"] = len(final_details)
-        final_summary["reference_id"] = report.reference_id
+        final_summary["reference_id"] = db_report.reference_id
 
-        report.result_summary = final_summary
-        flag_modified(report, "result_summary")
-        report.status = ReportStatus.READY_TO_USE
-        report.analysed_at = datetime.utcnow()
-        final_summary["analysed_at"] = report.analysed_at.isoformat()
+        db_report.result_summary = final_summary
+        flag_modified(db_report, "result_summary")
+        db_report.status = ReportStatus.READY_TO_USE
+        db_report.analysed_at = datetime.utcnow()
+        final_summary["analysed_at"] = db_report.analysed_at.isoformat()
 
         if subscription:
+            db.refresh(subscription)
             subscription.credits_used = min(subscription.credits_used + 0.5, subscription.credits_total)
 
         update_progress(100, 100, "Analysis complete. Report ready!")
         db.commit()
-        db.refresh(report)
-        return report
+        db.refresh(db_report)
+        return db_report
     except Exception as e:
-        report.status = ReportStatus.FAILED
-        for f in target_files:
-            if f.file_status == FileStatus.PROCESSING:
-                f.file_status = FileStatus.FAILED
+        logger.error("Analysis failed for report %s: %s", report_id, str(e), exc_info=True)
+        # Roll back session immediately after failed transaction
         try:
-            db.commit()
-        except Exception:
             db.rollback()
+        except Exception as rb_err:
+            logger.warning("Error during db.rollback() for report %s: %s", report_id, str(rb_err))
 
-        set_report_progress(report.id, 0, 1, f"Analysis failed: {str(e)}", stage="error")
+        if processing_started:
+            try:
+                db_report = db.query(Report).filter(Report.id == report_id).first()
+                if db_report:
+                    db_report.status = ReportStatus.FAILED
+                    if target_file_ids:
+                        db_files = db.query(ReportFile).filter(
+                            ReportFile.id.in_(target_file_ids),
+                            ReportFile.report_id == report_id
+                        ).all()
+                        for f in db_files:
+                            if f.file_status == FileStatus.PROCESSING:
+                                f.file_status = FileStatus.FAILED
+                    db.commit()
+            except Exception as update_err:
+                logger.error("Failed to update failure status for report %s: %s", report_id, str(update_err), exc_info=True)
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+
+            set_report_progress(report_id, 0, 1, f"Analysis failed: {str(e)}", stage="error")
+
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(
@@ -708,6 +781,8 @@ def analyse_report(
             detail=f"Analysis failed: {str(e)}"
         )
     finally:
+        with _active_reports_lock:
+            _active_reports.discard(report_id)
         if acquired_semaphore:
             _large_pdf_semaphore.release()
         import gc
@@ -765,6 +840,7 @@ def download_report(
 @router.delete("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_report(report_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     report = _get_owned_report(report_id, current_user, db)
+    _check_report_not_processing(report, "Cannot delete report while analysis is in progress.")
     report_dir = os.path.join(settings.UPLOAD_DIR, report.id)
     if os.path.isdir(report_dir):
         shutil.rmtree(report_dir, ignore_errors=True)
